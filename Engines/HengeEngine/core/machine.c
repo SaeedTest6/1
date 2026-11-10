@@ -549,7 +549,7 @@ void *hv_phys_ptr(HvMachine *m, uint64_t pa, uint64_t len) {
     return r->host + (pa - r->pa);
 }
 
-/* MMIO is accessed in naturally sized pieces of at most 8 bytes. */
+/* MMIO is accessed in naturally sized pieces of at most 8 bytes; a 16-byte pair access is split in two. */
 int hv_phys_read(HvMachine *m, uint64_t pa, void *buf, unsigned len) {
     void *p = hv_phys_ptr(m, pa, len);
     if (p) {
@@ -557,6 +557,10 @@ int hv_phys_read(HvMachine *m, uint64_t pa, void *buf, unsigned len) {
         return 0;
     }
     HvMmio *d = hv_mmio_lookup(m, pa);
+    if (d && len == 16) { /* LDP of two 64-bit registers (SEP mailbox slots): two accesses, low half first */
+        int rc = hv_phys_read(m, pa, buf, 8);
+        return rc ? rc : hv_phys_read(m, pa + 8, (uint8_t *)buf + 8, 8);
+    }
     if (!d || len > 8) return -1;
     if (!d->self_locked) hv_dev_lock(m);
     uint64_t v = d->read ? d->read(d->opaque, pa - d->pa, len) : 0;
@@ -587,6 +591,10 @@ int hv_phys_write(HvMachine *m, uint64_t pa, const void *buf, unsigned len) {
         return 0;
     }
     HvMmio *d = hv_mmio_lookup(m, pa);
+    if (d && len == 16) { /* STP of two 64-bit registers: two accesses, low half first */
+        int rc = hv_phys_write(m, pa, buf, 8);
+        return rc ? rc : hv_phys_write(m, pa + 8, (const uint8_t *)buf + 8, 8);
+    }
     if (!d || len > 8) return -1;
     uint64_t v = 0;
     memcpy(&v, buf, len);
