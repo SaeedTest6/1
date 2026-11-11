@@ -14,7 +14,8 @@ PROGRAM p_sep_pair
     ldr w6, [x0, #0x1c]             // RX_STATUS before the pop
     ldp x4, x5, [x0, #0x100]        // RX slot: one 16-byte access
     ldr w10, [x0, #0x1c]            // RX_STATUS after
-    stp x7, x8, [x0, #0x200]        // TX slot: one 16-byte access
+    add x11, x0, #0x200             // stp's offset reaches only 504
+    stp x7, x8, [x11]               // TX slot: one 16-byte access
     ldr w9, [x0, #0x20]             // TX_STATUS
 END p_sep_pair
 
