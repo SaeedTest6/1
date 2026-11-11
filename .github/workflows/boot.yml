@@ -36,7 +36,7 @@ jobs:
         working-directory: Engines/HengeEngine
         run: |
           ulimit -s 65520
-          build/vresearch_run --avb "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" --sep "$RUNNER_TEMP/OpenSEP/build/OpenSEP.bin" --seconds 20 > "$RUNNER_TEMP/boot-sep.log" 2>&1 || true; head -60 "$RUNNER_TEMP/boot-sep.log"; echo ...; tail -22 "$RUNNER_TEMP/boot-sep.log"
+          HV_LOG=1 build/vresearch_run --avb "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" --sep "$RUNNER_TEMP/OpenSEP/build/OpenSEP.bin" --seconds 20 > "$RUNNER_TEMP/boot-sep.log" 2>&1 || true; grep -E "unmapped|undefined|hypervisor|exception" "$RUNNER_TEMP/boot-sep.log" | sort | uniq -c | sort -rn | head -40; echo ...; head -20 "$RUNNER_TEMP/boot-sep.log";  echo ...; tail -22 "$RUNNER_TEMP/boot-sep.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
