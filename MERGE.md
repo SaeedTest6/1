@@ -78,6 +78,15 @@
 - **ساخت VM با خود vphone روی Actions ممکن نیست (ریستور با موتور خودمون شاید ممکن باشه، بالا رو ببین):** vphone فقط روی مک فیزیکی Apple Silicon کار می‌کنه و باید توی Recovery دستور `csrutil allow-research-guests enable` زده بشه؛ رانرها خودشون VM ان و Recovery ندارن. پس خود VM باید یه‌بار روی یه مک واقعی (یا مک اجاره‌ای) ساخته بشه.
 - **راه SEPOS با Actions:** رانر اینترنت داره، پس می‌تونه فرمور cloudOS رو از CDN اپل بگیره و `sep-firmware` رو بیرون بکشه (فقط موقت، هرگز commit یا منتشر نمی‌شه). بعد SEPOS رو توی موتور اجرا می‌کنیم با یه ردگیر که هر دسترسی به آدرس نگاشت‌نشده رو لاگ کنه و از روی لاگ دستگاه‌ها رو یکی‌یکی مدل می‌کنیم. این حلقه‌ی ویرایش/اجرا/لاگ بدون مک ممکنه.
 
+## اولین بوت (GitHub Actions، اجرای واقعی)
+
+`host/vresearch_run.c` و workflow به اسم Boot: OpenAVB و OpenSEP از سورس ساخته می‌شن و روی موتور ما، هر کدوم روی یه `HvMachine` و ترد جدا، بوت می‌شن.
+
+- **AP تنها (بدون SEP):** OpenAVB از اولین اجرا بوت شد: `[boot] runtime initialization` → `[sep] bootstrap begin` → `SEP RX timeout` به‌صورت حلقه. همون چیزی که از خوندن سورس پیش‌بینی کرده بودم.
+- **با هسته‌ی SEP:** اول SEP روی `pc 0x200` مرد (exit 9). با لاگ `unmapped write: pa 4010028 pc 200004c` معلوم شد اولین دستور ROM (`start.S`) یه breadcrumb به `0x04010028` می‌نویسه، پایین‌تر از RAM مستند. یه صفحه RAM در `0x04010000` اضافه شد (`SEPCORE_SCRATCH_*`).
+- **بعد از اصلاح:** `OpenBootROM: SEP bootstrap complete`، بعد `virtual firmware source not found` → `falling back to DFU` → `[dfu] ready for image upload`. یعنی **ROM اپل-مستقل (OpenAVB) و ROM مربوط به SEP (OpenSEP) روی موتور Henge با هم حرف می‌زنن و ROM به DFU می‌رسه.** SEP هم روی `pc 0x2019a30` در EL1 با MMU روشن در حال اجراست.
+- هنوز نه دیسک داریم، نه فرمور، نه SEPOS. DFU رسیدن یعنی آماده‌ی مرحله‌ی بعد: ریستور (آپلود iBSS و ...) از مسیر `virtio_usb`.
+
 ## بهینه‌سازی برای iOS 27
 
 اپ آیفون هنوز نیومده، پس این‌ها تصمیم‌های طراحی‌ان، نه کد. چیزی از این‌ها روی iOS 27 اجرا نشده.
