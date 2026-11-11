@@ -29,11 +29,13 @@ int hv_sepcore_create(HvSepCore *s, HvMachine *m, HvCpu *cpu, HvSepMailbox *mb, 
     s->cpu = cpu;
     s->runtime_size = runtime_bytes;
     s->rom = map_anon(SEPCORE_ROM_WINDOW);
+    s->scratch = map_anon(SEPCORE_SCRATCH_SIZE);
     s->ram = map_anon(SEPCORE_RAM_SIZE);
     s->runtime = map_anon(runtime_bytes);
-    if (!s->rom || !s->ram || !s->runtime) goto fail;
+    if (!s->rom || !s->scratch || !s->ram || !s->runtime) goto fail;
     if (hv_machine_add_mmio(m, 0, SEPCORE_DEVICE_BLOCK_SIZE, NULL, inert_read, inert_write, "sep-device-block")) goto fail;
     if (hv_machine_add_ram(m, VRESEARCH_SEP_ROM, SEPCORE_ROM_WINDOW, s->rom, 0)) goto fail;
+    if (hv_machine_add_ram(m, SEPCORE_SCRATCH_BASE, SEPCORE_SCRATCH_SIZE, s->scratch, 0)) goto fail;
     if (hv_machine_add_ram(m, VRESEARCH_SEP_RAM, SEPCORE_RAM_SIZE, s->ram, 0)) goto fail;
     if (hv_machine_add_ram(m, VRESEARCH_SEP_RUNTIME, runtime_bytes, s->runtime, 0)) goto fail;
     if (hv_machine_add_ram(m, VRESEARCH_RAM, ap_ram_size, ap_ram, 0)) goto fail;
@@ -75,6 +77,7 @@ void hv_sepcore_connect(HvSepCore *s, HvSepMailbox *mb, HvMachine *ap) {
 
 void hv_sepcore_destroy(HvSepCore *s) {
     if (s->rom) munmap(s->rom, SEPCORE_ROM_WINDOW);
+    if (s->scratch) munmap(s->scratch, SEPCORE_SCRATCH_SIZE);
     if (s->ram) munmap(s->ram, SEPCORE_RAM_SIZE);
     if (s->runtime) munmap(s->runtime, s->runtime_size);
     free(s->view);

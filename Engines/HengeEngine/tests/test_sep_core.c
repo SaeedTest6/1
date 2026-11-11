@@ -52,11 +52,12 @@ static void test_layout(void) {
     nregions = 0, fail_at = -1;
     hv_sepmbx_init(&mb, NULL, NULL);
     CHECK(hv_sepcore_create(&s, &sep_m, &cpu, &mb, ap_ram, sizeof ap_ram, 0x400000) == 0);
-    CHECK(nregions == 6);
+    CHECK(nregions == 7);
 
     const Region *r;
     CHECK((r = find(0x00000000)) && r->mmio && r->size == 0x02000000);      /* device block */
     CHECK((r = find(0x02000000)) && !r->mmio && r->size >= 0x50000);        /* OpenSEP.bin */
+    CHECK((r = find(0x04010000)) && !r->mmio && r->size == 0x10000);        /* boot breadcrumb at 0x04010028 */
     CHECK((r = find(0x04020000)) && !r->mmio && r->size == 0x30000);        /* SEP RAM ..0x04050000 */
     CHECK((r = find(0x06000000)) && !r->mmio && r->size == 0x400000);       /* runtime region */
     CHECK((r = find(0x30250000)) && r->mmio && r->size >= 0x1000);          /* mailbox */
@@ -93,10 +94,10 @@ static void test_failure_leaves_nothing(void) {
     HvSepCore s;
     static uint8_t ap_ram[0x4000];
     hv_sepmbx_init(&mb, NULL, NULL);
-    for (int at = 0; at < 5; at++) {
+    for (int at = 0; at < 7; at++) {
         nregions = 0, fail_at = at;
         CHECK(hv_sepcore_create(&s, &m, &cpu, &mb, ap_ram, sizeof ap_ram, 0x100000) == -1);
-        CHECK(s.rom == NULL && s.ram == NULL && s.runtime == NULL && s.view == NULL);
+        CHECK(s.rom == NULL && s.scratch == NULL && s.ram == NULL && s.runtime == NULL && s.view == NULL);
     }
     fail_at = -1;
     nregions = 0;

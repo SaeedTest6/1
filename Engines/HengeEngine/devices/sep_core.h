@@ -27,11 +27,16 @@
 #define SEPCORE_DEVICE_BLOCK_SIZE 0x02000000ull
 #define SEPCORE_ROM_WINDOW        0x00050000ull
 #define SEPCORE_RAM_SIZE          0x00030000ull
+/* Found by running it: the ROM's first store (src/runtime/boot/start.S, "str x11, [x10, #40]") is a boot breadcrumb
+   0xa4 at 0x04010028, below the documented SEP RAM. Without something mapped there the ROM faults before it
+   has set VBAR. 64 KiB of plain RAM is a guess at its extent. */
+#define SEPCORE_SCRATCH_BASE      0x04010000ull
+#define SEPCORE_SCRATCH_SIZE      0x00010000ull
 
 typedef struct HvSepCore {
     HvMachine *m;
     HvCpu *cpu;
-    uint8_t *rom, *ram, *runtime;
+    uint8_t *rom, *scratch, *ram, *runtime;
     uint64_t runtime_size;
     HvSepMailboxView *view;
     HvMachine *ap;        /* woken when the SEP sends; set by hv_sepcore_connect */
