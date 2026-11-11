@@ -1,0 +1,44 @@
+# First-boot experiments: build OpenAVB and OpenSEP from source, boot them on the vresearch board and
+# publish the console. Nothing from Apple is involved yet.
+name: Boot
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'Engines/**'
+      - '.github/workflows/boot.yml'
+
+jobs:
+  boot:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: brew install llvm lld uv ripgrep
+      - name: Build OpenAVB and OpenSEP
+        run: |
+          git clone --depth 1 https://github.com/owngoal-dev/OpenAVB.git "$RUNNER_TEMP/OpenAVB"
+          git clone --depth 1 https://github.com/owngoal-dev/OpenSEP.git "$RUNNER_TEMP/OpenSEP"
+          make -C "$RUNNER_TEMP/OpenAVB" build/OpenAVB.bin
+          make -C "$RUNNER_TEMP/OpenSEP" build/OpenSEP.bin
+          ls -l "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" "$RUNNER_TEMP/OpenSEP/build/OpenSEP.bin"
+      - name: Build the runner
+        working-directory: Engines/HengeEngine
+        run: make build/vresearch_run
+      - name: Boot, AP alone (no SEP): expect the panic in sep_bootstrap
+        working-directory: Engines/HengeEngine
+        run: |
+          ulimit -s 65520
+          build/vresearch_run --avb "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" --nosep --seconds 15 2>&1 | tee "$RUNNER_TEMP/boot-nosep.log" || true
+      - name: Boot with the SEP core
+        working-directory: Engines/HengeEngine
+        run: |
+          ulimit -s 65520
+          build/vresearch_run --avb "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" --sep "$RUNNER_TEMP/OpenSEP/build/OpenSEP.bin" --seconds 30 2>&1 | tee "$RUNNER_TEMP/boot-sep.log" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boot-logs
+          path: ${{ runner.temp }}/boot-*.log

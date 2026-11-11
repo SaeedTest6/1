@@ -128,6 +128,10 @@ $(B)/test_%: tests/test_%.c tests/%_programs.S tests/harness.S tests/harness.h $
 $(B)/test_vresearch: tests/test_vresearch.c tests/vresearch_programs.S tests/harness.S tests/harness.h $(ENGINE) $(DEV)
 	$(CC) $(CFLAGS) -Itests tests/test_vresearch.c tests/vresearch_programs.S tests/harness.S $(ENGINE) $(DEV) $(METAL_LIBS) -o $@
 
+# Headless first-boot runner (OpenAVB on the AP machine, OpenSEP on a second one).
+$(B)/vresearch_run: host/vresearch_run.c $(ENGINE) $(DEV) | $(B)
+	$(CC) $(CFLAGS) host/vresearch_run.c $(ENGINE) $(DEV) $(METAL_LIBS) -o $@
+
 # What this vendored tree can build: the tests only (tools/, ios/ and the restore stack are not here).
 check-engine: $(TESTS)
 	@ulimit -s 65520; for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
