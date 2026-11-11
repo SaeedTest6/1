@@ -137,7 +137,23 @@ int main(int argc, char **argv) {
 
     printf("\n--- end of run ---\n");
     printf("AP : exit %d, pc %llx, el%u\n", ap_reason, (unsigned long long)ap_cpu.pc, ap_cpu.el);
-    if (!nosep) printf("SEP: exit %d, pc %llx, el%u\n", sep_reason, (unsigned long long)sep_cpu.pc, sep_cpu.el);
+    if (!nosep) {
+        printf("SEP: exit %d, pc %llx, el%u\n", sep_reason, (unsigned long long)sep_cpu.pc, sep_cpu.el);
+        printf("SEP: esr %llx elr %llx far %llx spsr %llx sctlr %llx vbar %llx insn %08x\n",
+               (unsigned long long)sep_cpu.esr_el1, (unsigned long long)sep_cpu.elr_el1, (unsigned long long)sep_cpu.far_el1,
+               (unsigned long long)sep_cpu.spsr_el1, (unsigned long long)sep_cpu.sctlr_el1,
+               (unsigned long long)sep_cpu.vbar_el1, sep_cpu.exit_insn);
+        for (int i = 0; i < 31; i += 4)
+            printf("SEP: x%-2d %016llx %016llx %016llx %016llx\n", i, (unsigned long long)sep_cpu.x[i],
+                   i + 1 < 31 ? (unsigned long long)sep_cpu.x[i + 1] : 0ull, i + 2 < 31 ? (unsigned long long)sep_cpu.x[i + 2] : 0ull,
+                   i + 3 < 31 ? (unsigned long long)sep_cpu.x[i + 3] : 0ull);
+        uint64_t at = sep_cpu.elr_el1;
+        if (at >= VRESEARCH_SEP_ROM && at + 32 <= VRESEARCH_SEP_ROM + SEPCORE_ROM_WINDOW) {
+            printf("SEP: code at elr:");
+            for (int i = 0; i < 8; i++) printf(" %08x", ((uint32_t *)(sep.rom + (at - VRESEARCH_SEP_ROM)))[i]);
+            printf("\n");
+        }
+    }
     printf("stage marker %08x, progress:", *(uint32_t *)(board.base.cfg + 0x3ac));
     for (int i = 0; i < 8; i++) printf(" %08x", *(uint32_t *)(board.base.cfg + 0x64 + 4 * i));
     printf("\n");
