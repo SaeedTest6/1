@@ -12,7 +12,8 @@
 
      address        vresearch1 (this file)             vmapple (devices/vmapple.h)
      0x00100000     ROM image                          VMAPPLE_FIRMWARE
-     0x00400000     platform register block            VMAPPLE_CONFIG (devices/cfg.c: same page; layouts not compared)
+     0x00400000     platform register block            VMAPPLE_CONFIG (devices/cfg.c: same page, same
+                                                register offsets; see vresearch_platform.h)
      0x20010000     early console data register        VMAPPLE_UART (PL011)
      0x20070000     pvpanic                            VMAPPLE_PVPANIC
      0x30000000     bdif channel 0: root block device  VMAPPLE_BDOOR (devices/bdif.c)
