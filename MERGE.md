@@ -34,6 +34,7 @@
 2. `core: split 16-byte MMIO accesses` — موتور هر دسترسی MMIO بزرگ‌تر از ۸ بایت رو خطا می‌گرفت؛ صندوق‌پیام SEP با `ldp`/`stp` کار می‌کنه. حالا دو دسترسی ۸ بایتی (اول نیمه‌ی پایین). **کامپایل نشده** (به هدرهای Mach نیاز داره).
 3. `devices: add the vresearch1 SEP mailbox model` — `sep_mailbox_core.[ch]`، `sep_mailbox.[ch]`، `vresearch.h`، تست.
 4. `devices: add the vresearch1 board as a layer on vmapple` — `vresearch_platform.[ch]` (خالص) و `vresearch_board.[ch]` (لایه روی `hv_vmapple_create`).
+5. `devices: add the SEP core's address space` — `sep_core.[ch]`: فضای آدرس ROM مربوط به OpenSEP روی یه `HvMachine` جدا، و بیدارکردن دو ماشین از روی صندوق‌پیام.
 
 ## چی فهمیدم
 
@@ -42,24 +43,39 @@
 - **بلوک پلتفرم:** چیدمان رجیسترهایی که ROM می‌خونه با `cfg.c` یکیه (فقط مقدار فرق داره: board ID در `cfg.c` برابر `0x20` ـه، ROM `0x90` می‌خواد). بنابراین `hv_vresearch_fill_platform` فقط مقدار می‌نویسه، چیزی جابه‌جا نمی‌شه. آفست‌ها با `tools/check_openavb_offsets.py` از روی سورس OpenAVB چک می‌شن.
 - **تنظیم بوت:** ROM فقط وقتی بوت پلتفرم می‌کنه که boot config برابر ۱ یا ۲ باشه (`boot_policy.c`). `cfg.c` همین‌الان ۱ می‌ذاره.
 - **کنسول** یه رجیستر نوشتنی ۳۲ بیتیه؛ PL011 هم جواب می‌ده.
+- **SEP دو لایه داره، و فقط لایه‌ی اول مستند و قابل ساخته.**
+  1. *ROM (OpenSEP):* پروتکل صندوق‌پیام، رمزگشایی و بررسی ایمیج، تحویل به فرمور. قرارداد کاملش توی `OpenSEP/docs/external-contract.md` هست و `sep_core.[ch]` همون فضای آدرس رو می‌سازه: بلوک دستگاه خالی ۳۲ مگابایتی در `0`، ROM در `0x02000000`، رم SEP در `0x04020000`، ناحیه‌ی runtime در `0x06000000` (اندازه‌اش رو AP با opcode `0x11` تعیین می‌کنه)، صندوق‌پیام در `0x30250000`، و رم AP در `0x70000000` به‌صورت اشتراکی (SEP فرمور رو از آدرسی که AP می‌ده می‌خونه).
+  2. *SEPOS (فرمور اپل، `sep-firmware.vphone600`):* بعد از ROM همین روی هسته‌ی SEP اجرا می‌شه و به سخت‌افزاری نیاز داره که پروسه‌ی بسته‌ی SEP در Virtualization.framework می‌ده، از جمله ذخیره‌ی `SEPStorage` (۵۱۲ کیلوبایت: راز ۳۲ بایتی هر ماشین، رکوردهای A/B، رکوردهای anti-replay). **در هیچ‌کدوم از سورس‌هایی که دارم این دستگاه‌ها توصیف نشدن.** vphone هم SEP رو همیشه روشن می‌ذاره (حالت بدون SEP نداره). این بزرگ‌ترین ریسک کل پروژه‌ست؛ سازنده‌ی اپ اصلی یا اینو حل کرده یا راه دیگه‌ای رفته، و من نمی‌دونم کدوم.
 - **SEP باید قبل از هر چیز آماده باشه.** در `src/protocol/sep/sep.c`، `sep_bootstrap()` قبل از انتخاب مسیر بوت/DFU اجرا می‌شه. درخواست BOOTSTRAP که جواب نگیره timeout می‌خوره و ROM `pvpanic_trigger()` صدا می‌زنه. **این نتیجه از خوندن سورس درآمده، نه از اجرا.** (نسخه‌ی قبلی این فایل «اول DFU، بعد SEP» می‌گفت؛ غلط بود.)
 
 ## چی انجام و تست شده
 
 - مدل صندوق‌پیام: gcc + ASan/UBSan روی لینوکس، ۸ تست پاس (`tests/test_sep_mailbox.c`).
 - بلوک پلتفرم: ۶ تست پاس با gcc + ASan/UBSan (`tests/test_vresearch_platform.c`)؛ یه جهش (board ID = `0x91`) تست رو به‌درستی شکست داد.
-- `vresearch_board.c` و `sep_mailbox.c` با هدرهای Henge روی x86_64 فقط type-check شدن (`gcc -fsyntax-only`). لینک نشدن، چون Henge به Mach/Metal نیاز داره.
+- `sep_core.c` یه تست چیدمان با ماشین stub داره (`tests/test_sep_core.c`، با ASan/UBSan؛ دو جهش عمدی گرفته شد). stub فقط ثبت می‌کنه چی خواسته شده، کد اجرا نمی‌کنه.
+- `vresearch_board.c`، `sep_core.c` و `sep_mailbox.c` با هدرهای Henge روی x86_64 فقط type-check شدن (`gcc -fsyntax-only`). لینک نشدن، چون Henge به Mach/Metal نیاز داره.
 - مدل صندوق‌پیام فقط از بیت‌هایی ساخته شده که OpenSEP/OpenAVB اسم بردن؛ با سخت‌افزار/Virtualization.framework مقایسه نشده. شماره‌ی وقفه‌ی صندوق‌پیام معلوم نیست (به نظر OpenAVB poll می‌کنه).
 - `machine.c` (اصلاح ۱۶ بایتی) هنوز کامپایل نشده.
 
 ## کار باقی‌مونده (به ترتیب)
 
-1. **هسته‌ی SEP:** یه `HvMachine` دوم با فضای آدرس خودش (OpenSEP در `0x02000000`، RAM در `0x04020000`، runtime در `0x06000000`) که سمت `HV_SEPMBX_SEP` رو وصل می‌کنه و `SEPStorage` رو به‌عنوان حافظه‌اش می‌گیره. `host/vm.c` تک‌نمونه‌ایه (`hv_vm_machine()` سراسریه)، پس باید refactor بشه. بدون این، ROM همیشه پنیک می‌کنه.
+1. **هسته‌ی SEP، بخش ROM:** لایه‌ی دستگاه (`sep_core.[ch]`) آماده و با stub تست شده. هنوز مونده: ترد CPU برای ماشین دوم، و refactor در `host/vm.c` که تک‌نمونه‌ایه (`hv_vm_machine()` و `m` سراسری‌ان و handler سیگنال `on_ill` فقط ناحیه‌ی JIT همون یکی رو می‌شناسه). هر ماشین ناحیه‌ی JIT خودش رو داره (`hv_machine_init_jit(m, rx, rw, bytes)`)، پس SEP می‌تونه یه تکه‌ی کوچک از همون ناحیه‌ی ۱ گیگابایتی بگیره. `core/mmu.c` چند متغیر سراسری برای VA کرنل داره (`kva_*`) که اثرشون روی دو ماشین رو نسنجیدم. بدون این بخش، ROM همیشه پنیک می‌کنه.
+   **هسته‌ی SEP، بخش SEPOS:** دستگاه‌های مورد نیاز فرمور اپل نامعلومن (بالا). قبل از نوشتن هر چیزی باید معلوم بشه SEPOS روی vresearch1 چه رجیسترهایی می‌خونه؛ راه‌های ممکن: ردگیری با GDB stub ـی که vphone برای SEP روشن می‌کنه، یا پرسیدن از سازنده.
 2. **اولین بوت روی مک/آیفون:** `make` کامل روی مک، بعد بوت OpenAVB تا پیام `OpenBootROM: [sep] bootstrap configuration ready`. سؤال‌های باز: سازگاری GIC و تایمر Henge با ROM، رفتار PL011 با رجیستر کنسول.
 3. **وارد کردن بسته‌ی VM:** خوندن `config.plist` (فرمت `VZMacMachineIdentifier` برای ECID رو ندیدم؛ باید از کد vphone استخراج بشه)، نگاشت `Disk.img`→root، `nvram.bin`→aux (تأیید کانال)، `SEPStorage`→SEP. اندازه‌ی `Disk.img` واچ و راه انتقالش به آیفون بررسی نشده.
 4. **بوت تا iBoot و کرنل واچ**، نمایش و ورودی: `pvg_lite` فقط پروتکل GPU مجازی macOS رو بازپخش می‌کنه؛ سازگاری با درایور watchOS نامعلومه. لمس و دکمه‌ها از `vphoned` می‌گذرن (چرخش Crown راهی نداره).
 5. **جفت‌سازی:** بدون آیفون مجازی دوم یا هوک رد‌کردن Setup، واچ از صفحه‌ی جفت‌سازی رد نمی‌شه.
 6. **درز در Swift:** `VPhoneVirtualMachine.swift` به Virtualization.framework بسته است؛ برای اپ آیفون باید یه لایه‌ی backend بین UI و VM بیاد (شروع نشده). اپ آیفون ممکنه فقط از موتور C و UI جدید استفاده کنه، نه از Swiftِ vphone.
+
+## بهینه‌سازی برای iOS 27
+
+اپ آیفون هنوز نیومده، پس این‌ها تصمیم‌های طراحی‌ان، نه کد. چیزی از این‌ها روی iOS 27 اجرا نشده.
+
+- **هدف نسخه:** Henge با `deploymentTarget` برابر iOS 17.0 و Xcode 27 ساخته می‌شه و مسیرهای جدا برای iOS 17–26 داره (نمایش خارجی قدیمی `LegacyExternalDisplay`، JIT قبل از TXM). برای اپ جدید پیشنهاد: فقط iOS 27.0، که این مسیرهای قدیمی رو کنار می‌ذاره.
+- **JIT:** از iOS 26 به بعد (TXM) حافظه‌ی اجرایی فقط با دیباگر متصل داده می‌شه. Henge یه کمکی داخلی StikJIT داره (`HengeJITHelper.appex`) که روی iOS 27 جفت‌سازی روی خود دستگاه داره. entitlementها: `get-task-allow` همیشه؛ `increased-memory-limit` و `extended-virtual-addressing` با تیم شخصی (رایگان) امضا نمی‌شن، و Henge یه فایل entitlements کم‌تر برای اون حالت داره.
+- **حافظه:** واچ در vphone با ۴۰۹۶ مگابایت تست شده (قبلاً ۲۰۴۸). بودجه = رم AP + ناحیه‌ی کوچک SEP + ناحیه‌ی JIT یک گیگابایتی. گزارش‌های جامعه (نه اپل) می‌گن iOS 27 بتا ۳ سقف رم هر اپ رو روی دستگاه‌های ۱۲ گیگی تا حدود ۸.۶ گیگ بالا برده؛ رسمی نیست و معلوم نیست در نسخه‌ی نهایی بمونه. پس سقف ثابت ننویس؛ اندازه‌ی رم مهمان رو موقع اجرا از حافظه‌ی در دسترس بگیر (Henge خودش مهمان رو به اندازه‌ی «چیزی که می‌مونه» می‌کنه).
+- **نمایش خارجی:** `ExternalNonInteractiveAccessory` فقط روی iOS 27 هست؛ Henge اون رو برای نشست مک ثبت می‌کنه. برای واچ لازم نیست.
+- **ساخت:** Xcode 27 یا جدیدتر.
 
 ## لایسنس
 
@@ -71,7 +87,7 @@
 
 ```
 cd Engines/HengeEngine
-make build/test_sep_mailbox build/test_vresearch_platform
-build/test_sep_mailbox && build/test_vresearch_platform
+make build/test_sep_mailbox build/test_vresearch_platform build/test_sep_core
+build/test_sep_mailbox && build/test_vresearch_platform && build/test_sep_core
 python3 tools/check_openavb_offsets.py /path/to/OpenAVB
 ```
