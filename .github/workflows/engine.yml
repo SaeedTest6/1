@@ -1,0 +1,27 @@
+# Builds the merged engine on a real arm64 macOS runner and runs its tests. This is the only place the
+# Mach/Metal parts (core/machine.c, the 16-byte MMIO split, the vresearch board) get compiled and run.
+name: Engine
+
+on:
+  push:
+  workflow_dispatch: {}
+
+jobs:
+  engine:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the engine tests
+        working-directory: Engines/HengeEngine
+        run: make check-engine 2>&1 | tee "$RUNNER_TEMP/check-engine.log"
+        shell: bash
+      - name: Cross-check the platform offsets against OpenAVB's source
+        run: |
+          git clone --depth 1 https://github.com/owngoal-dev/OpenAVB.git "$RUNNER_TEMP/OpenAVB"
+          python3 -I Engines/HengeEngine/tools/check_openavb_offsets.py "$RUNNER_TEMP/OpenAVB"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engine-log
+          path: ${{ runner.temp }}/check-engine.log

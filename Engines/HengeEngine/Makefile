@@ -12,7 +12,7 @@ ENGINE = $(CORE) $(HOST)
 METAL_LIBS = -framework Foundation -framework QuartzCore -framework Metal -framework IOSurface -framework CoreGraphics -framework ImageIO -framework UniformTypeIdentifiers
 
 TESTS = $(B)/test_classify $(B)/test_jit_region $(B)/test_operands $(B)/test_jit $(B)/test_mem \
-        $(B)/test_mmu $(B)/test_exc $(B)/test_devices $(B)/test_shutdown $(B)/test_sep_mailbox $(B)/test_vresearch_platform $(B)/test_sep_core
+        $(B)/test_mmu $(B)/test_exc $(B)/test_devices $(B)/test_shutdown $(B)/test_sep_mailbox $(B)/test_vresearch_platform $(B)/test_sep_core $(B)/test_vresearch
 
 all: $(TESTS) $(B)/hengevm $(B)/hengevm-ref $(B)/hvsparse
 
@@ -123,6 +123,15 @@ $(B)/test_devices: tests/test_devices.c tests/devices_programs.S tests/harness.S
 	$(CC) $(CFLAGS) -Itests tests/test_devices.c tests/devices_programs.S tests/harness.S $(ENGINE) $(DEV) $(METAL_LIBS) -o $@
 $(B)/test_%: tests/test_%.c tests/%_programs.S tests/harness.S tests/harness.h $(ENGINE)
 	$(CC) $(CFLAGS) -Itests tests/test_$*.c tests/$*_programs.S tests/harness.S $(ENGINE) -o $@
+
+# The vresearch board on the real engine (macOS only: it needs core/machine.c and the devices).
+$(B)/test_vresearch: tests/test_vresearch.c tests/vresearch_programs.S tests/harness.S tests/harness.h $(ENGINE) $(DEV)
+	$(CC) $(CFLAGS) -Itests tests/test_vresearch.c tests/vresearch_programs.S tests/harness.S $(ENGINE) $(DEV) $(METAL_LIBS) -o $@
+
+# What this vendored tree can build: the tests only (tools/, ios/ and the restore stack are not here).
+check-engine: $(TESTS)
+	@ulimit -s 65520; for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
+.PHONY: check-engine
 
 test: all
 	@ulimit -s 65520; for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done # a test keeps a whole HvCpu (2 MB of TLB and more) on its stack
