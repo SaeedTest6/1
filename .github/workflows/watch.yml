@@ -1,0 +1,50 @@
+# Stage 1 of an Apple Watch install on the runner, the way Monolith's app does it on a phone:
+# vphone's resources, monolith-fw, then new / set-patches / prepare / patch for Watch7,18.
+# Apple's firmware is downloaded to the runner's temp folder and is never uploaded or committed.
+name: Watch
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  stage1:
+    runs-on: xcode-27
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disk
+        run: df -h / | tail -2
+      - name: Clone Monolith and vphone-cli
+        run: |
+          git clone --depth 1 https://github.com/MakrSas/Monolith.git "$RUNNER_TEMP/Monolith"
+          git clone --depth 1 https://github.com/Lakr233/vphone-cli.git "$RUNNER_TEMP/vphone-cli"
+          git -C "$RUNNER_TEMP/vphone-cli" log -1 --format='vphone-cli %h %s'
+      - name: Build VPhone.bundle (as vphone's own package workflow does)
+        working-directory: ${{ runner.temp }}/vphone-cli
+        env:
+          SWIFT_JOBS: "4"
+        run: |
+          set -o pipefail
+          xcodebuild -workspace VPhone.xcworkspace -scheme VPhone -configuration Release \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/XcodeBundle -jobs 4 build \
+            2>&1 | tail -40
+          B=.build/XcodeBundle/Build/Products/Release/VPhone.bundle
+          ls "$B/Contents/Resources" | head -40
+          echo "VPHONE_RESOURCES=$PWD/$B/Contents/Resources" >> "$GITHUB_ENV"
+      - name: Build monolith-fw
+        working-directory: ${{ runner.temp }}/Monolith/third_party/vphone-patcher
+        run: |
+          swift build -c release --product monolith-fw 2>&1 | tail -30
+          echo "FW=$PWD/.build/release/monolith-fw" >> "$GITHUB_ENV"
+      - name: "Watch7,18: new, set-patches, prepare, patch"
+        run: |
+          set -o pipefail
+          export VPHONE_ROOT="$RUNNER_TEMP/vroot" MONOLITH_RESOURCES="$VPHONE_RESOURCES"
+          LIB="$RUNNER_TEMP/library"; mkdir -p "$LIB" "$VPHONE_ROOT"
+          "$FW" new "$LIB" m-watch "$VPHONE_RESOURCES" 64
+          "$FW" fw set-patches -l "$LIB" m-watch --preset watchos-monolith
+          "$FW" fw prepare -l "$LIB" m-watch --device "Watch7,18" \
+            -i "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-09130/486B2E2B-DEDB-4DCF-80F0-7A84ED51B074/Watch7,18_26.4_23T240_Restore.ipsw" \
+            -c "https://updates.cdn-apple.com/private-cloud-compute/6acb7959507f25a76753f5a08ee39f09671486eb7619367e42dc1869bd779035" 2>&1 | tail -60
+          "$FW" fw patch -l "$LIB" m-watch 2>&1 | tail -60
+          df -h / | tail -1; du -sh "$LIB/m-watch" "$VPHONE_ROOT" 2>/dev/null
