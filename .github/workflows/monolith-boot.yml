@@ -37,7 +37,7 @@ jobs:
             --sep-rom "$RUNNER_TEMP/OpenSEP/build/OpenSEP.bin" --sep-storage SEPStorage --disk Disk.img --aux nvram.bin \
             --ecid 1234567890123 --ram 2048 --cpus 2 --no-pvg --log 1 > "$RUNNER_TEMP/mboot.log" 2>&1 || true
           wc -l "$RUNNER_TEMP/mboot.log"; head -40 "$RUNNER_TEMP/mboot.log" | cut -c1-200; echo ...; tail -25 "$RUNNER_TEMP/mboot.log" | cut -c1-200
-          echo; grep -E "unmapped|sep-storage|sep:" "$RUNNER_TEMP/mboot.log" | cut -c1-120 | sort | uniq -c | sort -rn | head -20
+^          echo; grep -E "unmapped|sep-storage|sep:" "$RUNNER_TEMP/mboot.log" | cut -c1-120 | sort | uniq -c | sort -rn | head -20 || true
         shell: bash
       - uses: actions/upload-artifact@v4
         if: always()

@@ -2,7 +2,7 @@ diff --git a/third_party/vphone-patcher/Sources/monolith-fw/main.swift b/third_p
 index 80f6a08..84aa069 100644
 --- a/third_party/vphone-patcher/Sources/monolith-fw/main.swift
 +++ b/third_party/vphone-patcher/Sources/monolith-fw/main.swift
-@@ -69,6 +69,67 @@ if args.count >= 6, args[1] == "aa-extract" { // aa-extract IMAGE VOLUME PATH AR
+@@ -69,6 +69,68 @@ if args.count >= 6, args[1] == "aa-extract" { // aa-extract IMAGE VOLUME PATH AR
          print("extracted \(total) entries")
      }
  }
@@ -37,6 +37,7 @@ index 80f6a08..84aa069 100644
 +        var environment = ProcessInfo.processInfo.environment
 +        environment["HV_INSTALL_STOP_AT_END"] = "1"
 +        environment["HV_WRITE_CACHE"] = "0"
++        environment["HV_MACHINE"] = "vresearch101"
 +        process.environment = environment
 +        process.standardOutput = log
 +        process.standardError = log
