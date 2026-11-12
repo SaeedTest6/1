@@ -1,35 +1,28 @@
-# Builds the author's Monolith (GPL-2.0-or-later) on the runner and runs its engine tests, to see what works
-# before we change anything. Nothing from Apple is downloaded here.
+# Builds the author's Monolith engine (GPL-2.0-or-later) on a real arm64 macOS runner and runs its tests,
+# to see what state the code we want to build on is in. Nothing from Apple is downloaded here.
 name: Monolith
 
 on:
   workflow_dispatch: {}
   push:
-    paths:
-      - '.github/workflows/monolith.yml'
-      - 'monolith/**'
+    paths: ['.github/workflows/monolith.yml']
 
 jobs:
-  build:
+  engine:
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
       - name: Clone Monolith
-        run: git clone --depth 1 https://github.com/MakrSas/Monolith.git "$RUNNER_TEMP/Monolith"
-      - name: Tools
-        run: brew install pkg-config libslirp glib libplist libusbmuxd libimobiledevice libimobiledevice-glue libtatsu libzip curl cmake meson ninja
-      - name: Restore stack for the Mac
-        working-directory: ${{ runner.temp }}/Monolith
-        run: tools/build_ios_restore.sh mac 2>&1 | tail -30
-      - name: "make: engine, tools and tests"
-        working-directory: ${{ runner.temp }}/Monolith
+        run: git clone --depth 1 https://github.com/MakrSas/Monolith.git "$RUNNER_TEMP/mono"
         shell: bash
+      - name: Build and run its tests
+        working-directory: ${{ runner.temp }}/mono
         run: |
-          make -k -j4 all 2>&1 | tail -60
-      - name: Run the tests
-        working-directory: ${{ runner.temp }}/Monolith
+          git log -1 --format='%h %ad %s' --date=short
+          (ulimit -s 65520; make -j4 test) 2>&1 | tee "$RUNNER_TEMP/mono-test.log" | tail -60
         shell: bash
-        run: |
-          ulimit -s 65520
-          make test 2>&1 | tail -60
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monolith-log
+          path: ${{ runner.temp }}/mono-test.log
