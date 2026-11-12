@@ -98,6 +98,21 @@ jobs:
           echo "restored-system exit code: $rsrc"; tail -25 "$RUNNER_TEMP/restored-system.log" | cut -c1-250
           [ $rsrc -eq 0 ] || exit 1
           df -h / | tail -1; du -sh "$LIB/m-watch" "$VPHONE_ROOT" 2>/dev/null
+      - name: Boot the restored watch
+        run: |
+          set +e
+          M="$RUNNER_TEMP/library/m-watch"
+          ECID=$(cat "$RUNNER_TEMP/watch-ecid")
+          ulimit -s 65520
+          ls -la "$M" | head -20
+          HV_MACHINE=vresearch101 HV_SEP_LOG=1 perl -e 'alarm 900; exec @ARGV' "$HENGEVM" --rom "$M/OpenAVB.bin" --sep-rom "$M/OpenSEP.bin" \
+            --sep-storage "$M/SEPStorage" --disk "$M/Disk.img" --aux "$M/nvram.bin" --ecid "$ECID" --ram 3072 --cpus 4 --no-pvg --log 0 \
+            --screenshot "$RUNNER_TEMP/watch-boot.png" > "$RUNNER_TEMP/watch-boot.log" 2>&1
+          echo "hengevm exit: $?"
+          wc -l "$RUNNER_TEMP/watch-boot.log"
+          grep -v -E "^[0-9a-f]{8,}:[0-9]+$" "$RUNNER_TEMP/watch-boot.log" | head -60 | cut -c1-220
+          echo "..."; grep -v -E "^[0-9a-f]{8,}:[0-9]+$" "$RUNNER_TEMP/watch-boot.log" | tail -60 | cut -c1-220
+        shell: bash
       - name: Restore log tail
         if: always()
         run: tail -60 "$RUNNER_TEMP/cloudos-restore.log" 2>/dev/null | cut -c1-200 || true
@@ -111,4 +126,6 @@ jobs:
             ${{ runner.temp }}/watch-restore.log
             ${{ runner.temp }}/restored-system.log
             ${{ runner.temp }}/patch.log
+            ${{ runner.temp }}/watch-boot.log
+            ${{ runner.temp }}/watch-boot.png
             ${{ runner.temp }}/cloudos-restore.log
