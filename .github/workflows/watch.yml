@@ -93,7 +93,7 @@ jobs:
           done
           kill $RP 2>/dev/null; sleep 3
           echo "--- watch restore log"; grep -E "install:|panic|stopped" "$RUNNER_TEMP/watch-restore.log" | tail -15 | cut -c1-200
-          grep -q "install: done" "$RUNNER_TEMP/watch-restore.log" || { echo "--- before the failure"; grep -n "restore finished" -B70 "$RUNNER_TEMP/watch-restore.log" | cut -c1-240 | head -90; echo "--- errors"; grep -n -i "error\|fail\|unable\|invalid" "$RUNNER_TEMP/watch-restore.log" | cut -c1-240 | tail -25; exit 1; }
+          grep -q "install: done" "$RUNNER_TEMP/watch-restore.log" || { echo "--- before the failure"; grep -v -E "^[0-9a-f]{8,}:[0-9]+$" "$RUNNER_TEMP/watch-restore.log" | grep -v "Uploading:" | cut -c1-240 | head -120; echo "--- patched components"; grep -E "^  (iBSS|iBEC|LLB|TXM|kernelcache|SEP|DeviceTree|RestoreSEP)|patches applied|Applying|iBoot" "$RUNNER_TEMP/patch.log" | cut -c1-200 | head -40; ls -la "$M/iPhoneOS_Watch7,18_26.4_23T240_Restore/Firmware/dfu" | head -20; echo "--- errors"; grep -n -i "error\|fail\|unable\|invalid" "$RUNNER_TEMP/watch-restore.log" | cut -c1-240 | tail -25; exit 1; }
           sudo -E MONOLITH_APFS=1 "$FW" restored-system "$M" "$VPHONE_RESOURCES" > "$RUNNER_TEMP/restored-system.log" 2>&1; rsrc=$?
           echo "restored-system exit code: $rsrc"; tail -25 "$RUNNER_TEMP/restored-system.log" | cut -c1-250
           [ $rsrc -eq 0 ] || exit 1
