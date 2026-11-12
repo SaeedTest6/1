@@ -33,7 +33,7 @@ jobs:
           with open("Disk.img","wb") as f: f.truncate(64<<30)
           PY
           ulimit -s 65520
-          HV_SEP_LOG=1 timeout 60 "$RUNNER_TEMP/Monolith/build/hengevm" --rom "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" \
+          HV_SEP_LOG=1 perl -e 'alarm 60; exec @ARGV' "$RUNNER_TEMP/Monolith/build/hengevm" --rom "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" \
             --sep-rom "$RUNNER_TEMP/OpenSEP/build/OpenSEP.bin" --sep-storage SEPStorage --disk Disk.img --aux nvram.bin \
             --ecid 1234567890123 --ram 2048 --cpus 2 --no-pvg --log 1 > "$RUNNER_TEMP/mboot.log" 2>&1 || true
           wc -l "$RUNNER_TEMP/mboot.log"; head -40 "$RUNNER_TEMP/mboot.log" | cut -c1-200; echo ...; tail -25 "$RUNNER_TEMP/mboot.log" | cut -c1-200
