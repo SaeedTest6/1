@@ -116,7 +116,7 @@ jobs:
             --screenshot "$RUNNER_TEMP/watch-boot.png" > "$RUNNER_TEMP/watch-boot.log" 2>&1 &
           BP=$!
           L="$RUNNER_TEMP/watch-boot.log"
-          for i in $(seq 1 25); do
+          for i in $(seq 1 15); do
             sleep 120
             kill -0 $BP 2>/dev/null || { echo "hengevm exited"; break; }
             echo "=== t=$((i*2)) min: $(wc -l < "$L") lines, apfs-clone: $(grep -c apfs_clonegroup "$L"), last non-noise lines:"
@@ -124,6 +124,22 @@ jobs:
           done
           kill $BP 2>/dev/null; sleep 3
           echo "=== final"; grep -v -E "^[0-9a-f]{8,}:[0-9]+$|apfs_clonegroup|SEP RX" "$L" | tail -80 | cut -c1-220
+          echo "=== what ran (counts of marker strings in the whole boot log)"
+          for k in SpringBoard backboardd carousel Carousel ClockFace NanoLaunch nanoregistryd watchdogd mobilegestalt "Process 1 " panic Panic "unmapped" "undefined"; do printf '%-14s %s\n' "$k" "$(grep -a -c "$k" "$L")"; done
+          echo "=== screenshot"
+          ls -la "$RUNNER_TEMP/watch-boot.png" 2>&1
+          python3 -m pip install --quiet --break-system-packages pillow 2>&1 | tail -1
+          python3 - "$RUNNER_TEMP/watch-boot.png" <<'PY'
+          import sys
+          try:
+              from PIL import Image
+              im = Image.open(sys.argv[1]).convert("L"); print("size", im.size)
+              w, h = im.size; nz = sum(1 for v in im.getdata() if v > 16); print("non-black pixels: %.1f%%" % (100.0 * nz / (w * h)))
+              sm = im.resize((48, 28)); chars = " .:-=+*#%@"
+              for y in range(28): print("".join(chars[min(9, sm.getpixel((x, y)) * 10 // 256)] for x in range(48)))
+          except Exception as e:
+              print("no screenshot analysis:", e)
+          PY
         shell: bash
       - name: Restore log tail
         if: always()
