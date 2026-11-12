@@ -1,0 +1,46 @@
+# Boots OpenAVB + OpenSEP on Monolith's own engine (hengevm), blank disk, no Apple firmware. Compares with our Boot run.
+name: Monolith boot
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  boot:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - name: Tools
+        run: brew install llvm lld uv ripgrep pkg-config libslirp glib libplist libusbmuxd libimobiledevice libimobiledevice-glue libtatsu libzip curl cmake meson ninja
+      - name: Clone and build
+        run: |
+          git clone --depth 1 https://github.com/MakrSas/Monolith.git "$RUNNER_TEMP/Monolith"
+          git clone --depth 1 https://github.com/owngoal-dev/OpenAVB.git "$RUNNER_TEMP/OpenAVB"
+          git clone --depth 1 https://github.com/owngoal-dev/OpenSEP.git "$RUNNER_TEMP/OpenSEP"
+          make -C "$RUNNER_TEMP/OpenAVB" build/OpenAVB.bin
+          make -C "$RUNNER_TEMP/OpenSEP" build/OpenSEP.bin
+          cd "$RUNNER_TEMP/Monolith"
+          tools/build_ios_restore.sh mac 2>&1 | tail -3
+          make -j4 build/hengevm 2>&1 | tail -5
+        shell: bash
+      - name: Boot with the SEP
+        run: |
+          W="$RUNNER_TEMP/w"; mkdir -p "$W"; cd "$W"
+          python3 - <<'PY'
+          import os
+          open("SEPStorage","wb").write(bytes(512<<10))
+          aux=bytes([0xa5,0xd5,0xb3,0xfe,0x97,0xad,0x1d,0x27,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0])
+          open("nvram.bin","wb").write(aux+bytes(33570816-len(aux)))
+          with open("Disk.img","wb") as f: f.truncate(64<<30)
+          PY
+          ulimit -s 65520
+          HV_SEP_LOG=1 timeout 60 "$RUNNER_TEMP/Monolith/build/hengevm" --rom "$RUNNER_TEMP/OpenAVB/build/OpenAVB.bin" \
+            --sep-rom "$RUNNER_TEMP/OpenSEP/build/OpenSEP.bin" --sep-storage SEPStorage --disk Disk.img --aux nvram.bin \
+            --ecid 1234567890123 --ram 2048 --cpus 2 --no-pvg --log 1 > "$RUNNER_TEMP/mboot.log" 2>&1 || true
+          wc -l "$RUNNER_TEMP/mboot.log"; head -40 "$RUNNER_TEMP/mboot.log" | cut -c1-200; echo ...; tail -25 "$RUNNER_TEMP/mboot.log" | cut -c1-200
+          echo; grep -E "unmapped|sep-storage|sep:" "$RUNNER_TEMP/mboot.log" | cut -c1-120 | sort | uniq -c | sort -rn | head -20
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monolith-boot
+          path: ${{ runner.temp }}/mboot.log
