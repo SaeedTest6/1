@@ -111,14 +111,19 @@ jobs:
           M="$RUNNER_TEMP/library/m-watch"
           ECID=$(cat "$RUNNER_TEMP/watch-ecid")
           ulimit -s 65520
-          ls -la "$M" | head -20
-          HV_MACHINE=vresearch101 HV_SEP_LOG=1 perl -e 'alarm 900; exec @ARGV' "$HENGEVM" --rom "$M/OpenAVB.bin" --sep-rom "$M/OpenSEP.bin" \
+          HV_MACHINE=vresearch101 HV_SEP_LOG=1 "$HENGEVM" --rom "$M/OpenAVB.bin" --sep-rom "$M/OpenSEP.bin" \
             --sep-storage "$M/SEPStorage" --disk "$M/Disk.img" --aux "$M/nvram.bin" --ecid "$ECID" --ram 3072 --cpus 4 --no-pvg --log 0 \
-            --screenshot "$RUNNER_TEMP/watch-boot.png" > "$RUNNER_TEMP/watch-boot.log" 2>&1
-          echo "hengevm exit: $?"
-          wc -l "$RUNNER_TEMP/watch-boot.log"
-          grep -v -E "^[0-9a-f]{8,}:[0-9]+$" "$RUNNER_TEMP/watch-boot.log" | head -60 | cut -c1-220
-          echo "..."; grep -v -E "^[0-9a-f]{8,}:[0-9]+$" "$RUNNER_TEMP/watch-boot.log" | tail -60 | cut -c1-220
+            --screenshot "$RUNNER_TEMP/watch-boot.png" > "$RUNNER_TEMP/watch-boot.log" 2>&1 &
+          BP=$!
+          L="$RUNNER_TEMP/watch-boot.log"
+          for i in $(seq 1 25); do
+            sleep 120
+            kill -0 $BP 2>/dev/null || { echo "hengevm exited"; break; }
+            echo "=== t=$((i*2)) min: $(wc -l < "$L") lines, apfs-clone: $(grep -c apfs_clonegroup "$L"), last non-noise lines:"
+            grep -v -E "^[0-9a-f]{8,}:[0-9]+$|apfs_clonegroup|SEP RX" "$L" | tail -4 | cut -c1-200
+          done
+          kill $BP 2>/dev/null; sleep 3
+          echo "=== final"; grep -v -E "^[0-9a-f]{8,}:[0-9]+$|apfs_clonegroup|SEP RX" "$L" | tail -80 | cut -c1-220
         shell: bash
       - name: Restore log tail
         if: always()
