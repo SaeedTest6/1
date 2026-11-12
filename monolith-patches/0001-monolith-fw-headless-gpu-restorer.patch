@@ -1,0 +1,72 @@
+diff --git a/third_party/vphone-patcher/Sources/monolith-fw/main.swift b/third_party/vphone-patcher/Sources/monolith-fw/main.swift
+index 80f6a08..84aa069 100644
+--- a/third_party/vphone-patcher/Sources/monolith-fw/main.swift
++++ b/third_party/vphone-patcher/Sources/monolith-fw/main.swift
+@@ -69,6 +69,67 @@ if args.count >= 6, args[1] == "aa-extract" { // aa-extract IMAGE VOLUME PATH AR
+         print("extracted \(total) entries")
+     }
+ }
++/// Headless GPU-driver recovery (CI): the cloudOS restore the app does with its own engine, here by running `hengevm --install`.
++/// MONOLITH_HENGEVM: the hengevm binary. MONOLITH_ROM_DIR: a folder with OpenAVB.bin and OpenSEP.bin. MONOLITH_RESTORE_LOG: its full log.
++if let hengevm = ProcessInfo.processInfo.environment["MONOLITH_HENGEVM"],
++   let romDir = ProcessInfo.processInfo.environment["MONOLITH_ROM_DIR"] {
++    VPhonePCCGPURecovery.restorer = { tree, work in
++        let fm = FileManager.default
++        let rom = URL(fileURLWithPath: romDir)
++        for name in ["OpenAVB.bin", "OpenSEP.bin"] {
++            try fm.copyItem(at: rom.appendingPathComponent(name), to: work.appendingPathComponent(name))
++        }
++        try Data(count: 512 << 10).write(to: work.appendingPathComponent("SEPStorage"))
++        var aux = Data([0xa5, 0xd5, 0xb3, 0xfe, 0x97, 0xad, 0x1d, 0x27, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])
++        aux.append(Data(count: 33_570_816 - aux.count))
++        try aux.write(to: work.appendingPathComponent("nvram.bin"))
++        let disk = work.appendingPathComponent("Disk.img")
++        fm.createFile(atPath: disk.path, contents: nil)
++        let handle = try FileHandle(forWritingTo: disk)
++        try handle.truncate(atOffset: UInt64(64) << 30)
++        try handle.close()
++        let logURL = URL(fileURLWithPath: ProcessInfo.processInfo.environment["MONOLITH_RESTORE_LOG"] ?? work.appendingPathComponent("restore.log").path)
++        fm.createFile(atPath: logURL.path, contents: nil)
++        let log = try FileHandle(forWritingTo: logURL)
++        let process = Process()
++        process.executableURL = URL(fileURLWithPath: hengevm)
++        process.arguments = ["--rom", work.appendingPathComponent("OpenAVB.bin").path, "--sep-rom", work.appendingPathComponent("OpenSEP.bin").path,
++                             "--sep-storage", work.appendingPathComponent("SEPStorage").path, "--disk", disk.path,
++                             "--aux", work.appendingPathComponent("nvram.bin").path, "--ecid", String(UInt64.random(in: 1 << 40 ..< 1 << 62)),
++                             "--ram", "2048", "--cpus", "4", "--no-pvg", "--log", "0", "--install", tree.path]
++        var environment = ProcessInfo.processInfo.environment
++        environment["HV_INSTALL_STOP_AT_END"] = "1"
++        environment["HV_WRITE_CACHE"] = "0"
++        process.environment = environment
++        process.standardOutput = log
++        process.standardError = log
++        try process.run()
++        print("[*] hengevm restore started, log: \(logURL.path)")
++        var finished = false
++        var lastReport = Date()
++        var tail = Date.distantFuture
++        while process.isRunning {
++            Thread.sleep(forTimeInterval: 5)
++            let text = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
++            if text.contains("install: done") || text.contains("install: failed") {
++                finished = text.contains("install: done")
++                if tail == .distantFuture { tail = Date() }
++                if Date().timeIntervalSince(tail) > 20 { process.terminate() }
++            }
++            if Date().timeIntervalSince(lastReport) > 120 {
++                lastReport = Date()
++                print("[*] restore: \(text.split(separator: "\n").last(where: { $0.contains("install:") }) ?? "starting")")
++            }
++        }
++        let text = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
++        finished = finished || text.contains("install: done")
++        if !finished {
++            print(text.split(separator: "\n").suffix(40).joined(separator: "\n"))
++            throw NSError(domain: "monolith-fw", code: 1, userInfo: [NSLocalizedDescriptionKey: "the cloudOS restore did not finish"])
++        }
++        return disk
++    }
++}
+ if args.count >= 2, args[1] == "fw" { // vphone-cli's own `fw …` commands, in this process
+     VPhoneResources.monolithBase = ProcessInfo.processInfo.environment["MONOLITH_RESOURCES"].map { URL(fileURLWithPath: $0) }
+     MonolithFirmwareCommands.main(Array(args.dropFirst(2)))

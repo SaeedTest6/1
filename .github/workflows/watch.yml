@@ -1,5 +1,6 @@
-# Stage 1 of an Apple Watch install on the runner, the way Monolith's app does it on a phone:
-# vphone's resources, monolith-fw, then new / set-patches / prepare / patch for Watch7,18.
+# An Apple Watch install on the runner, the way Monolith's app does it on a phone:
+# vphone's resources, monolith-fw, then new / set-patches / prepare (which restores cloudOS on the engine to take its
+# GPU driver) / patch for Watch7,18.
 # Apple's firmware is downloaded to the runner's temp folder and is never uploaded or committed.
 name: Watch
 
@@ -19,7 +20,16 @@ jobs:
           git clone --depth 1 https://github.com/MakrSas/Monolith.git "$RUNNER_TEMP/Monolith"
           git clone --depth 1 https://github.com/Lakr233/vphone-cli.git "$RUNNER_TEMP/vphone-cli"
           git -C "$RUNNER_TEMP/vphone-cli" log -1 --format='vphone-cli %h %s'
+          echo "VPHONE_SHA=$(git -C "$RUNNER_TEMP/vphone-cli" rev-parse HEAD)" >> "$GITHUB_ENV"
+          git -C "$RUNNER_TEMP/Monolith" apply "$GITHUB_WORKSPACE"/monolith-patches/*.patch
+      - name: VPhone.bundle cache
+        id: vcache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/vphone-cli/.build/XcodeBundle/Build/Products/Release/VPhone.bundle
+          key: vphone-bundle-${{ env.VPHONE_SHA }}
       - name: Build VPhone.bundle (as vphone's own package workflow does)
+        if: steps.vcache.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}/vphone-cli
         env:
           SWIFT_JOBS: "4"
@@ -31,6 +41,16 @@ jobs:
           B=.build/XcodeBundle/Build/Products/Release/VPhone.bundle
           ls "$B/Contents/Resources" | head -40
           echo "VPHONE_RESOURCES=$PWD/$B/Contents/Resources" >> "$GITHUB_ENV"
+      - name: VPhone resources path
+        run: echo "VPHONE_RESOURCES=$RUNNER_TEMP/vphone-cli/.build/XcodeBundle/Build/Products/Release/VPhone.bundle/Contents/Resources" >> "$GITHUB_ENV"
+      - name: Tools for the engine
+        run: brew install pkg-config libslirp glib libplist libusbmuxd libimobiledevice libimobiledevice-glue libtatsu libzip curl cmake meson ninja
+      - name: Build hengevm
+        working-directory: ${{ runner.temp }}/Monolith
+        run: |
+          tools/build_ios_restore.sh mac 2>&1 | tail -5
+          make -j4 build/hengevm 2>&1 | tail -15
+          echo "HENGEVM=$PWD/build/hengevm" >> "$GITHUB_ENV"
       - name: Build monolith-fw
         working-directory: ${{ runner.temp }}/Monolith/third_party/vphone-patcher
         run: |
@@ -40,6 +60,8 @@ jobs:
         run: |
           set -o pipefail
           export VPHONE_ROOT="$RUNNER_TEMP/vroot" MONOLITH_RESOURCES="$VPHONE_RESOURCES"
+          export MONOLITH_HENGEVM="$HENGEVM" MONOLITH_ROM_DIR="$RUNNER_TEMP/library/m-watch" MONOLITH_RESTORE_LOG="$RUNNER_TEMP/cloudos-restore.log"
+          ulimit -s 65520
           LIB="$RUNNER_TEMP/library"; mkdir -p "$LIB" "$VPHONE_ROOT"
           "$FW" new "$LIB" m-watch "$VPHONE_RESOURCES" 64
           "$FW" fw set-patches -l "$LIB" m-watch --preset watchos-monolith
@@ -48,3 +70,6 @@ jobs:
             -c "https://updates.cdn-apple.com/private-cloud-compute/6acb7959507f25a76753f5a08ee39f09671486eb7619367e42dc1869bd779035" 2>&1 | tail -60
           "$FW" fw patch -l "$LIB" m-watch 2>&1 | tail -60
           df -h / | tail -1; du -sh "$LIB/m-watch" "$VPHONE_ROOT" 2>/dev/null
+      - name: Restore log tail
+        if: always()
+        run: tail -60 "$RUNNER_TEMP/cloudos-restore.log" 2>/dev/null | cut -c1-200 || true
