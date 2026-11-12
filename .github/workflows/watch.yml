@@ -71,6 +71,32 @@ jobs:
           "$FW" fw kernelcache -l "$LIB" m-watch > "$RUNNER_TEMP/kc-stage.log" 2>&1; krc=$?; echo "kernelcache stage exit code: $krc"; tail -20 "$RUNNER_TEMP/kc-stage.log" | cut -c1-300; [ $krc -eq 0 ] || exit 1
           sudo -E "$FW" fw kernelcache -l "$LIB" m-watch --link-only > "$RUNNER_TEMP/kc-link.log" 2>&1; lrc=$?; echo "kernelcache link exit code: $lrc"; tail -10 "$RUNNER_TEMP/kc-link.log" | cut -c1-300; [ $lrc -eq 0 ] || exit 1
           sudo -E "$FW" fw patch -l "$LIB" m-watch > "$RUNNER_TEMP/patch.log" 2>&1; rc=$?; echo "patch exit code: $rc"; tail -25 "$RUNNER_TEMP/patch.log" | cut -c1-300; dmesg 2>/dev/null | tail -3; [ $rc -eq 0 ] || exit 1
+          M="$LIB/m-watch"
+          ls -la "$M" | head -30
+          [ -f "$M/SEPStorage" ] || head -c 524288 /dev/zero > "$M/SEPStorage"
+          if [ ! -f "$M/nvram.bin" ]; then
+            printf '\xa5\xd5\xb3\xfe\x97\xad\x1d\x27\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00' > "$M/nvram.bin"
+            truncate -s 33570816 "$M/nvram.bin"
+          fi
+          [ -f "$M/Disk.img" ] || { : > "$M/Disk.img"; truncate -s 64G "$M/Disk.img"; }
+          TREE=$(ls -d "$M"/*_Restore | tail -1)
+          ECID=$((RANDOM * 32768 * 65536 + RANDOM + 1099511627776)); echo "$ECID" > "$RUNNER_TEMP/watch-ecid"
+          mkdir -p "$RUNNER_TEMP/rwork"
+          HV_MACHINE=vresearch101 HV_INSTALL_STOP_AT_END=1 HV_WRITE_CACHE=0 "$HENGEVM" --rom "$M/OpenAVB.bin" --sep-rom "$M/OpenSEP.bin" --sep-storage "$M/SEPStorage" \
+            --disk "$M/Disk.img" --aux "$M/nvram.bin" --ecid "$ECID" --ram 2048 --cpus 4 --no-pvg --log 0 --install "$TREE" > "$RUNNER_TEMP/watch-restore.log" 2>&1 &
+          RP=$!
+          for i in $(seq 1 180); do
+            sleep 10
+            if grep -q "install: done\|install: failed\|install: restore finished" "$RUNNER_TEMP/watch-restore.log"; then sleep 20; break; fi
+            kill -0 $RP 2>/dev/null || break
+            [ $((i % 6)) -eq 0 ] && grep "install:" "$RUNNER_TEMP/watch-restore.log" | tail -1
+          done
+          kill $RP 2>/dev/null; sleep 3
+          echo "--- watch restore log"; grep -E "install:|panic|stopped" "$RUNNER_TEMP/watch-restore.log" | tail -15 | cut -c1-200
+          grep -q "install: done" "$RUNNER_TEMP/watch-restore.log" || { tail -30 "$RUNNER_TEMP/watch-restore.log" | cut -c1-200; exit 1; }
+          sudo -E MONOLITH_APFS=1 "$FW" restored-system "$M" "$VPHONE_RESOURCES" > "$RUNNER_TEMP/restored-system.log" 2>&1; rsrc=$?
+          echo "restored-system exit code: $rsrc"; tail -25 "$RUNNER_TEMP/restored-system.log" | cut -c1-250
+          [ $rsrc -eq 0 ] || exit 1
           df -h / | tail -1; du -sh "$LIB/m-watch" "$VPHONE_ROOT" 2>/dev/null
       - name: Restore log tail
         if: always()
@@ -82,5 +108,7 @@ jobs:
           path: |
             ${{ runner.temp }}/prepare.log
             ${{ runner.temp }}/kc-*.log
+            ${{ runner.temp }}/watch-restore.log
+            ${{ runner.temp }}/restored-system.log
             ${{ runner.temp }}/patch.log
             ${{ runner.temp }}/cloudos-restore.log
