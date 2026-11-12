@@ -34,7 +34,7 @@ jobs:
         env:
           SWIFT_JOBS: "4"
         run: |
-          set -o pipefail
+          set +e
           xcodebuild -workspace VPhone.xcworkspace -scheme VPhone -configuration Release \
             -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/XcodeBundle -jobs 4 build \
             2>&1 | tail -40
@@ -58,7 +58,7 @@ jobs:
           echo "FW=$PWD/.build/release/monolith-fw" >> "$GITHUB_ENV"
       - name: "Watch7,18: new, set-patches, prepare, patch"
         run: |
-          set -o pipefail
+          set +e
           export VPHONE_ROOT="$RUNNER_TEMP/vroot" MONOLITH_RESOURCES="$VPHONE_RESOURCES"
           export MONOLITH_HENGEVM="$HENGEVM" MONOLITH_ROM_DIR="$RUNNER_TEMP/library/m-watch" MONOLITH_RESTORE_LOG="$RUNNER_TEMP/cloudos-restore.log"
           ulimit -s 65520
@@ -67,8 +67,8 @@ jobs:
           "$FW" fw set-patches -l "$LIB" m-watch --preset watchos-monolith
           "$FW" fw prepare -l "$LIB" m-watch --device "Watch7,18" \
             -i "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-09130/486B2E2B-DEDB-4DCF-80F0-7A84ED51B074/Watch7,18_26.4_23T240_Restore.ipsw" \
-            -c "https://updates.cdn-apple.com/private-cloud-compute/6acb7959507f25a76753f5a08ee39f09671486eb7619367e42dc1869bd779035" 2>&1 | tail -60
-          sudo -E "$FW" fw patch -l "$LIB" m-watch > "$RUNNER_TEMP/patch.log" 2>&1; rc=$?; echo "patch exit code: $rc"; tail -25 "$RUNNER_TEMP/patch.log" | cut -c1-300; dmesg 2>/dev/null | tail -3; [ $rc -eq 0 ]
+            -c "https://updates.cdn-apple.com/private-cloud-compute/6acb7959507f25a76753f5a08ee39f09671486eb7619367e42dc1869bd779035" > "$RUNNER_TEMP/prepare.log" 2>&1; prc=$?; echo "prepare exit code: $prc"; tail -15 "$RUNNER_TEMP/prepare.log" | cut -c1-300; [ $prc -eq 0 ] || exit 1
+          sudo -E "$FW" fw patch -l "$LIB" m-watch > "$RUNNER_TEMP/patch.log" 2>&1; rc=$?; echo "patch exit code: $rc"; tail -25 "$RUNNER_TEMP/patch.log" | cut -c1-300; dmesg 2>/dev/null | tail -3; [ $rc -eq 0 ] || exit 1
           df -h / | tail -1; du -sh "$LIB/m-watch" "$VPHONE_ROOT" 2>/dev/null
       - name: Restore log tail
         if: always()
@@ -78,5 +78,6 @@ jobs:
         with:
           name: watch-logs
           path: |
+            ${{ runner.temp }}/prepare.log
             ${{ runner.temp }}/patch.log
             ${{ runner.temp }}/cloudos-restore.log
