@@ -15,6 +15,9 @@ jobs:
       - name: Clone Monolith
         run: git clone --depth 1 https://github.com/MakrSas/Monolith.git "$RUNNER_TEMP/mono"
         shell: bash
+      - name: Install libraries
+        run: brew install libslirp glib pkg-config libplist libimobiledevice libzip openssl@3 || true
+        shell: bash
       - name: Build and run its tests
         working-directory: ${{ runner.temp }}/mono
         run: |
