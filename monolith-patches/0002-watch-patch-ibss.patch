@@ -1,0 +1,14 @@
+diff --git a/third_party/vphone-patcher/Sources/FirmwarePatcher/PatchSets/FirmwarePatchSetCatalog.swift b/third_party/vphone-patcher/Sources/FirmwarePatcher/PatchSets/FirmwarePatchSetCatalog.swift
+index 96e4762..92c6af3 100644
+--- a/third_party/vphone-patcher/Sources/FirmwarePatcher/PatchSets/FirmwarePatchSetCatalog.swift
++++ b/third_party/vphone-patcher/Sources/FirmwarePatcher/PatchSets/FirmwarePatchSetCatalog.swift
+@@ -497,7 +497,8 @@ public enum FirmwarePatchSetCatalog {
+             minimalBootChainPatches
+                 .union(watchOSDeviceTreePatches)
+                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
+-                .union([FirmwareRestoreImagePatchSet.gpuDriver]), // prepare stages the driver; Monolith installs it
++                .union([FirmwareRestoreImagePatchSet.gpuDriver]) // prepare stages the driver; Monolith installs it
++                .union(["ibss-cfw-serial_label", "ibss-boot-image4_callback", "ibss-boot-skip_generate_nonce"]), // the patched iBEC must pass iBSS's image check
+         ),
+     )
+ 
