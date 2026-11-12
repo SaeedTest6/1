@@ -14,7 +14,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Disk
-        run: df -h / | tail -2
+        run: |
+          df -h / | tail -1
+          # Free space the build does not need: simulator runtimes, old toolchains, caches.
+          sudo rm -rf /Library/Developer/CoreSimulator/Volumes /Library/Developer/CoreSimulator/Images /Library/Developer/CoreSimulator/Caches 2>/dev/null || true
+          rm -rf "$HOME/Library/Developer/CoreSimulator" "$HOME/Library/Caches" "$HOME/.cache" "$HOME/.dotnet" "$HOME/.rustup" "$HOME/.gradle" "$HOME/Library/Android" 2>/dev/null || true
+          sudo rm -rf /Users/runner/hostedtoolcache /Users/runner/Library/Android /usr/local/share/dotnet /Library/Frameworks/Mono.framework 2>/dev/null || true
+          df -h / | tail -1
       - name: Clone Monolith and vphone-cli
         run: |
           git clone --depth 1 https://github.com/MakrSas/Monolith.git "$RUNNER_TEMP/Monolith"
@@ -72,6 +78,7 @@ jobs:
           sudo -E "$FW" fw kernelcache -l "$LIB" m-watch --link-only > "$RUNNER_TEMP/kc-link.log" 2>&1; lrc=$?; echo "kernelcache link exit code: $lrc"; tail -10 "$RUNNER_TEMP/kc-link.log" | cut -c1-300; [ $lrc -eq 0 ] || exit 1
           sudo -E "$FW" fw patch -l "$LIB" m-watch > "$RUNNER_TEMP/patch.log" 2>&1; rc=$?; echo "patch exit code: $rc"; tail -25 "$RUNNER_TEMP/patch.log" | cut -c1-300; dmesg 2>/dev/null | tail -3; [ $rc -eq 0 ] || exit 1
           M="$LIB/m-watch"
+          df -h / | tail -1; du -sh "$VPHONE_ROOT"/* 2>/dev/null | sort -h | tail -6
           ls -la "$M" | head -30
           [ -f "$M/SEPStorage" ] || head -c 524288 /dev/zero > "$M/SEPStorage"
           if [ ! -f "$M/nvram.bin" ]; then
