@@ -68,8 +68,15 @@ jobs:
           "$FW" fw prepare -l "$LIB" m-watch --device "Watch7,18" \
             -i "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-09130/486B2E2B-DEDB-4DCF-80F0-7A84ED51B074/Watch7,18_26.4_23T240_Restore.ipsw" \
             -c "https://updates.cdn-apple.com/private-cloud-compute/6acb7959507f25a76753f5a08ee39f09671486eb7619367e42dc1869bd779035" 2>&1 | tail -60
-          sudo -E "$FW" fw patch -l "$LIB" m-watch 2>&1 | tail -60
+          sudo -E "$FW" fw patch -l "$LIB" m-watch > "$RUNNER_TEMP/patch.log" 2>&1; rc=$?; echo "patch exit code: $rc"; tail -25 "$RUNNER_TEMP/patch.log" | cut -c1-300; dmesg 2>/dev/null | tail -3; [ $rc -eq 0 ]
           df -h / | tail -1; du -sh "$LIB/m-watch" "$VPHONE_ROOT" 2>/dev/null
       - name: Restore log tail
         if: always()
         run: tail -60 "$RUNNER_TEMP/cloudos-restore.log" 2>/dev/null | cut -c1-200 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watch-logs
+          path: |
+            ${{ runner.temp }}/patch.log
+            ${{ runner.temp }}/cloudos-restore.log
