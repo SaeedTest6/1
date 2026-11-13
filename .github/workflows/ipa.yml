@@ -102,9 +102,10 @@ jobs:
         working-directory: Henge
         run: |
           L=ios/build/DerivedData.buildlog
-          n=$(grep -n "fatal error" "$L" | head -1 | cut -d: -f1)
-          sed -n "$((n-40)),$((n+3))p" "$L" | cut -c1-420
-          echo ---; grep -n "In file included from\|^CompileC\|^SwiftCompile\|^PrecompileSwiftBridgingHeader\|ProcessPCH\|GenerateDSYM" "$L" | head -5 | cut -c1-300
+          grep -n "error:\|fatal error\|BUILD FAILED\|Undefined symbols\|ld: " "$L" | sort -u -t: -k2 | head -20 | cut -c1-400
+          n=$(grep -n "error:\|fatal error\|Undefined symbols" "$L" | head -1 | cut -d: -f1)
+          [ -n "$n" ] && sed -n "$((n>25?n-25:1)),$((n+6))p" "$L" | grep -v "^ *export " | cut -c1-400
+          true
       - name: Upload Henge.ipa
         uses: actions/upload-artifact@v4
         with:
