@@ -141,6 +141,29 @@ jobs:
               print("no screenshot analysis:", e)
           PY
         shell: bash
+      - name: Pack the watch for the Monolith app
+        run: |
+          set -e
+          M="$RUNNER_TEMP/library/m-watch"
+          O="$RUNNER_TEMP/export/Watch7-18"; mkdir -p "$O"
+          make -C "$RUNNER_TEMP/Monolith" build/hvsparse >/dev/null
+          cp "$M/OpenAVB.bin" "$O/AVPBooter.vmapple2.bin"
+          cp "$M/OpenSEP.bin" "$O/OpenSEP.bin"
+          cp "$M/nvram.bin" "$O/auxiliary.bin"
+          cp "$M/SEPStorage" "$O/SEPStorage"
+          "$RUNNER_TEMP/Monolith/build/hvsparse" pack "$M/Disk.img" "$O/disk.img.hvsparse"
+          ECID=$(cat "$RUNNER_TEMP/watch-ecid")
+          printf '{"name": "Apple Watch", "ecid": %s, "seed": 0, "ramMB": 3072, "platform": "vresearch101", "screenWidth": 0, "screenHeight": 0}\n' "$ECID" > "$O/machine.json"
+          du -sh "$O"; ls -la "$O"
+          cd "$RUNNER_TEMP/export" && zip -0 -qr Watch7-18.zip Watch7-18 && ls -la Watch7-18.zip
+        shell: bash
+      - name: Upload the watch (private repo only; contains Apple firmware)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Watch7-18-for-Monolith
+          path: ${{ runner.temp }}/export/Watch7-18.zip
+          compression-level: 0
+          retention-days: 3
       - name: Restore log tail
         if: always()
         run: tail -60 "$RUNNER_TEMP/cloudos-restore.log" 2>/dev/null | cut -c1-200 || true
