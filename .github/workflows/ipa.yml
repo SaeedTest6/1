@@ -26,6 +26,13 @@ jobs:
     steps:
       - name: Check out Monolith (GPL-2.0-or-later)
         run: git clone --depth 1 https://github.com/MakrSas/Monolith.git Henge
+      # The app's build phase compiles small macOS test programs (tl/Makefile) with plain `xcrun`, which inherits
+      # Xcode's iPhoneOS SDK there and fails on NSURLHandle.h. Point those at the macOS SDK.
+      - name: Point the macOS helper builds at the macOS SDK
+        working-directory: Henge
+        run: |
+          sed -i '' -e 's|^CC = xcrun clang|CC = env -u SDKROOT xcrun --sdk macosx clang|' -e 's|\bxcrun swiftc|env -u SDKROOT xcrun --sdk macosx swiftc|' tl/Makefile
+          grep -n "^CC =\|swiftc" tl/Makefile
 
       # fetch_deps.sh copies prebuilt pieces out of a BUILT Husk checkout:
       # StikJIT.xcframework (vendored in Husk's repo, comes with checkout),
