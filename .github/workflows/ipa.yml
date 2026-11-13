@@ -26,6 +26,13 @@ jobs:
     steps:
       - name: Check out Monolith (GPL-2.0-or-later)
         run: git clone --depth 1 https://github.com/MakrSas/Monolith.git Henge
+      - name: Rebrand as Plutonium (name and icon)
+        working-directory: Henge
+        run: |
+          plutil -replace CFBundleDisplayName -string Plutonium ios/Henge/Info.plist
+          cp "$GITHUB_WORKSPACE"/branding/AppIcon*.png ios/Henge/Resources/
+          plutil -p ios/Henge/Info.plist | grep -i "DisplayName"
+        shell: bash
       # The app's build phase compiles small macOS test programs (tl/Makefile) with plain `xcrun`, which inherits
       # Xcode's iPhoneOS SDK there and fails on NSURLHandle.h. Point those at the macOS SDK.
       - name: Point the macOS helper builds at the macOS SDK
@@ -128,9 +135,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp /Users/runner/Desktop/Monolith.ipa Monolith.ipa
-          cp /Users/runner/Desktop/Monolith.tipa Monolith.tipa
+          cp /Users/runner/Desktop/Monolith.ipa Plutonium.ipa
+          cp /Users/runner/Desktop/Monolith.tipa Plutonium.tipa
           SRC=$(git -C Henge rev-parse --short HEAD)
-          gh release create "ipa-$GITHUB_RUN_NUMBER" Monolith.ipa Monolith.tipa --repo "$GITHUB_REPOSITORY" \
-            --title "Monolith IPA #$GITHUB_RUN_NUMBER" \
+          gh release create "ipa-$GITHUB_RUN_NUMBER" Plutonium.ipa Plutonium.tipa --repo "$GITHUB_REPOSITORY" \
+            --title "Plutonium IPA #$GITHUB_RUN_NUMBER" \
             --notes "Unsigned build of MakrSas/Monolith at $SRC (GPL-2.0-or-later; source: https://github.com/MakrSas/Monolith). Sign it with SideStore/AltStore, or install the .tipa with TrollStore. Contains no Apple firmware."
