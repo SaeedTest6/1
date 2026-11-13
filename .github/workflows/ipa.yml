@@ -31,7 +31,7 @@ jobs:
       - name: Point the macOS helper builds at the macOS SDK
         working-directory: Henge
         run: |
-          sed -i '' -e 's|^CC = xcrun clang|CC = env -u SDKROOT xcrun --sdk macosx clang|' -e 's|\bxcrun swiftc|env -u SDKROOT xcrun --sdk macosx swiftc|' tl/Makefile
+          sed -i '' -e 's|^CC = xcrun clang|CC = env -u SDKROOT xcrun --sdk macosx clang|' -e 's|xcrun swiftc|env -u SDKROOT xcrun --sdk macosx swiftc|' tl/Makefile
           grep -n "^CC =\|swiftc" tl/Makefile
 
       # fetch_deps.sh copies prebuilt pieces out of a BUILT Husk checkout:
