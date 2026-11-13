@@ -1,0 +1,15 @@
+name: SDK check
+on:
+  workflow_dispatch: {}
+jobs:
+  check:
+    runs-on: xcode-27
+    steps:
+      - run: |
+          ls /Applications | grep -i xcode
+          xcode-select -p
+          for X in /Applications/Xcode*.app; do
+            H=$(ls -d $X/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS*.sdk 2>/dev/null | tail -1)/System/Library/Frameworks/Foundation.framework/Headers
+            echo "== $X"; sed -n 8,14p "$H/NSURL.h"; ls "$H" | grep -c NSURLHandle
+          done
+        shell: bash
