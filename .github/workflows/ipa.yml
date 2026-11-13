@@ -110,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Henge-ipa-${{ github.sha }}
-          path: /Users/runner/Desktop/Henge.ipa
+          path: /Users/runner/Desktop/Monolith.ipa
           if-no-files-found: error
 
       - name: Package Henge.tipa
@@ -121,15 +121,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Henge-tipa-${{ github.sha }}
-          path: /Users/runner/Desktop/Henge.tipa
+          path: /Users/runner/Desktop/Monolith.tipa
           if-no-files-found: error
 
       - name: Publish a release with the IPA
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp /Users/runner/Desktop/Henge.ipa Monolith.ipa
-          cp /Users/runner/Desktop/Henge.tipa Monolith.tipa
+          cp /Users/runner/Desktop/Monolith.ipa Monolith.ipa
+          cp /Users/runner/Desktop/Monolith.tipa Monolith.tipa
           SRC=$(git -C Henge rev-parse --short HEAD)
           gh release create "ipa-$GITHUB_RUN_NUMBER" Monolith.ipa Monolith.tipa --repo "$GITHUB_REPOSITORY" \
             --title "Monolith IPA #$GITHUB_RUN_NUMBER" \
