@@ -120,14 +120,20 @@ jobs:
             sleep 120
             kill -0 $BP 2>/dev/null || { echo "hengevm exited"; break; }
             echo "=== t=$((i*2)) min: $(wc -l < "$L") lines, apfs-clone: $(grep -c apfs_clonegroup "$L"), last non-noise lines:"
-            if [ $i -ge 5 ]; then
-              rpc() { curl -s -m 20 -X POST http://127.0.0.1:18339/v1/rpc -H 'Content-Type: application/json' -d "{\"method\":\"$1\",\"params\":${2:-{\}}}" | cut -c1-600; echo; }
-              echo "--- agent health:"; curl -s -m 10 http://127.0.0.1:18339/v1/health | cut -c1-500; echo
-              echo "--- setup.status:"; rpc setup.status
-              if [ -z "$SKIPPED" ] && curl -s -m 10 http://127.0.0.1:18339/v1/health | grep -q '"'; then
-                echo "--- setup.skip force:"; rpc setup.skip '{"force":true}'; SKIPPED=1
+            if [ $i -ge 9 ] && [ -z "$PROBED" ]; then
+              rpc() { curl -s -m 60 -X POST http://127.0.0.1:18339/v1/rpc -H 'Content-Type: application/json' -d "{\"method\":\"$1\",\"params\":$2}"; echo; }
+              if curl -s -m 10 http://127.0.0.1:18339/v1/health | grep -q api_version; then
+                PROBED=1
+                echo "--- setup.status"; rpc setup.status '{}' | cut -c1-500
+                echo "--- ui.describe"; rpc ui.describe '{}' | cut -c1-1500
+                echo "--- ui.ocr"; rpc ui.ocr '{}' | cut -c1-2500
+                echo "--- processes.list"; rpc processes.list '{}' | tr '{' '\n' | grep -aoE '"(name|path)":"[^"]*"' | cut -c1-140 | sort -u | head -150
+                echo "--- foreground"; rpc apps.foreground '{}' | cut -c1-300
+                echo "--- apps.list"; rpc apps.list '{}' | grep -aoE '"(id|bundle_id|name)":"[^"]*"' | cut -c1-120 | head -80
+                echo "--- services (setup, buddy, nano, pair)"; rpc services.list '{}' | grep -aoiE '[A-Za-z0-9._-]*(buddy|setup|nano|pair|gizmo|activation)[A-Za-z0-9._-]*' | sort -u | head -60
+                echo "--- settings"; for d in com.apple.purplebuddy com.apple.NanoBuddy com.apple.Buddy com.apple.nanoregistryd; do echo "[$d]"; rpc settings.get "{\"domain\":\"$d\"}" | cut -c1-400; done
+                echo "--- files.find *uddy*"; for r in /Applications /System/Library/CoreServices /System/Library/PrivateFrameworks /System/Library/NanoPreferenceBundles; do rpc files.find "{\"root\":\"$r\",\"pattern\":\"*uddy*\"}" | grep -aoE '"/[^"]*"' | head -12; done
               fi
-              echo "--- foreground:"; curl -s -m 10 http://127.0.0.1:18339/v1/apps/foreground | cut -c1-300; echo
             fi
             grep -v -E "^[0-9a-f]{8,}:[0-9]+$|apfs_clonegroup|SEP RX" "$L" | tail -4 | cut -c1-200
           done
