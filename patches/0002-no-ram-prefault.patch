@@ -1,0 +1,12 @@
+diff --git a/ios/Henge/Machines.swift b/ios/Henge/Machines.swift
+index d50d87b..0ab77f4 100644
+--- a/ios/Henge/Machines.swift
++++ b/ios/Henge/Machines.swift
+@@ -40,6 +40,7 @@ enum GuestMemory {
+     static func prepare(_ mac: VirtualMac) -> UInt64 {
+         let file = mac.directory.appendingPathComponent("ram.tmp")
+         setenv("HV_RAM_FILE", file.path, 1)
++        setenv("HV_RAM_NO_PREFAULT", "1", 1) // do not dirty every page of the RAM file up front (memory pressure)
+         let free = (try? mac.directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+             .volumeAvailableCapacityForImportantUsage ?? 0
+         let room = free > 0 ? UInt64(max(free - (2 << 30), 0)) >> 20 : UInt64.max
