@@ -1,0 +1,19 @@
+name: VZ check
+on:
+  workflow_dispatch: {}
+jobs:
+  check:
+    runs-on: xcode-27
+    steps:
+      - run: |
+          sw_vers; uname -m
+          echo "hv_support: $(sysctl -n kern.hv_support 2>&1)"
+          echo "model: $(sysctl -n hw.model 2>&1)  cpus: $(sysctl -n hw.ncpu)  mem GB: $(( $(sysctl -n hw.memsize) / 1073741824 ))"
+          csrutil status 2>&1 | head -2
+          df -h / | tail -1
+          cat > /tmp/vz.swift <<'SW'
+          import Virtualization
+          print("VZVirtualMachine.isSupported:", VZVirtualMachine.isSupported)
+          SW
+          swiftc /tmp/vz.swift -o /tmp/vz 2>&1 | tail -3 && /tmp/vz
+        shell: bash
