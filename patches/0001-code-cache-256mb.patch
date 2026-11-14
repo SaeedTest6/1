@@ -1,0 +1,24 @@
+diff --git a/ios/Henge/JIT/JITBootstrap.swift b/ios/Henge/JIT/JITBootstrap.swift
+index 2debd9d..9b9101c 100644
+--- a/ios/Henge/JIT/JITBootstrap.swift
++++ b/ios/Henge/JIT/JITBootstrap.swift
+@@ -70,6 +70,7 @@ enum JITBootstrap {
+     static let jitBytes: Int = {
+         switch (UserDefaults.standard.object(forKey: codeCacheKey) as? Int) ?? defaultCodeCacheMB {
+         case 1536: return 1536 << 20
++        case 256: return 256 << 20
+         case 512: return 512 << 20
+         default: return 1024 << 20
+         }
+diff --git a/ios/Henge/SettingsView.swift b/ios/Henge/SettingsView.swift
+index 35c1f66..538d8f7 100644
+--- a/ios/Henge/SettingsView.swift
++++ b/ios/Henge/SettingsView.swift
+@@ -114,6 +114,7 @@ struct SettingsView: View {
+                     Toggle("Quicker wake from idle", isOn: $wfiSpin)
+                     Toggle("Superblocks (experimental)", isOn: $superblocks)
+                     Picker("Code cache", selection: $codeCacheMB) {
++                        Text("256 MB (least memory)").tag(256)
+                         Text("512 MB").tag(512)
+                         Text("1 GB").tag(1024)
+                         Text("1.5 GB").tag(1536)

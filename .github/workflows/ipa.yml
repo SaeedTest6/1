@@ -33,6 +33,11 @@ jobs:
           cp "$GITHUB_WORKSPACE"/branding/AppIcon*.png ios/Henge/Resources/
           plutil -p ios/Henge/Info.plist | grep -i "DisplayName"
         shell: bash
+      - name: Apply our patches to the app
+        working-directory: Henge
+        run: |
+          for p in "$GITHUB_WORKSPACE"/patches/*.patch; do echo "applying $p"; git apply --whitespace=nowarn "$p"; done
+        shell: bash
       # The app's build phase compiles small macOS test programs (tl/Makefile) with plain `xcrun`, which inherits
       # Xcode's iPhoneOS SDK there and fails on NSURLHandle.h. Point those at the macOS SDK.
       - name: Point the macOS helper builds at the macOS SDK
