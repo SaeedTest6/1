@@ -1,0 +1,44 @@
+diff --git a/ios/Henge/HengeAppDelegate.swift b/ios/Henge/HengeAppDelegate.swift
+index 11bc6f8..a3aecea 100644
+--- a/ios/Henge/HengeAppDelegate.swift
++++ b/ios/Henge/HengeAppDelegate.swift
+@@ -15,4 +15,39 @@ final class HengeAppDelegate: NSObject, UIApplicationDelegate {
+         }
+         return config
+     }
++
++    // Diagnostics (Plutonium): say in the log why the app went away.
++    private var footprintTimer: Timer?
++
++    func application(_ application: UIApplication,
++                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
++        footprintTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
++            HengeLog.logFootprint("tick5s")
++        }
++        return true
++    }
++
++    func applicationDidReceiveMemoryWarning(_ application: UIApplication) {
++        HengeLog.log("life", "MEMORY WARNING from iOS")
++        HengeLog.logFootprint("memory-warning")
++    }
++
++    func applicationWillResignActive(_ application: UIApplication) {
++        HengeLog.log("life", "will resign active (screen lock, app switcher or a system sheet)")
++        HengeLog.logFootprint("resign-active")
++    }
++
++    func applicationDidEnterBackground(_ application: UIApplication) {
++        HengeLog.log("life", "entered background")
++        HengeLog.logFootprint("background")
++    }
++
++    func applicationDidBecomeActive(_ application: UIApplication) {
++        HengeLog.log("life", "became active")
++    }
++
++    func applicationWillTerminate(_ application: UIApplication) {
++        HengeLog.log("life", "WILL TERMINATE (iOS is ending the app normally)")
++        HengeLog.logFootprint("terminate")
++    }
+ }
