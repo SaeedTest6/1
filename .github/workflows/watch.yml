@@ -111,7 +111,7 @@ jobs:
           M="$RUNNER_TEMP/library/m-watch"
           ECID=$(cat "$RUNNER_TEMP/watch-ecid")
           ulimit -s 65520
-          HV_MACHINE=vresearch101 HV_SEP_LOG=1 "$HENGEVM" --rom "$M/OpenAVB.bin" --sep-rom "$M/OpenSEP.bin" \
+          HV_AGENT_PORT=18339 HV_MACHINE=vresearch101 HV_SEP_LOG=1 "$HENGEVM" --rom "$M/OpenAVB.bin" --sep-rom "$M/OpenSEP.bin" \
             --sep-storage "$M/SEPStorage" --disk "$M/Disk.img" --aux "$M/nvram.bin" --ecid "$ECID" --ram 3072 --cpus 4 --no-pvg --log 0 \
             --screenshot "$RUNNER_TEMP/watch-boot.png" > "$RUNNER_TEMP/watch-boot.log" 2>&1 &
           BP=$!
@@ -120,6 +120,15 @@ jobs:
             sleep 120
             kill -0 $BP 2>/dev/null || { echo "hengevm exited"; break; }
             echo "=== t=$((i*2)) min: $(wc -l < "$L") lines, apfs-clone: $(grep -c apfs_clonegroup "$L"), last non-noise lines:"
+            if [ $i -ge 5 ]; then
+              rpc() { curl -s -m 20 -X POST http://127.0.0.1:18339/v1/rpc -H 'Content-Type: application/json' -d "{\"method\":\"$1\",\"params\":${2:-{\}}}" | cut -c1-600; echo; }
+              echo "--- agent health:"; curl -s -m 10 http://127.0.0.1:18339/v1/health | cut -c1-500; echo
+              echo "--- setup.status:"; rpc setup.status
+              if [ -z "$SKIPPED" ] && curl -s -m 10 http://127.0.0.1:18339/v1/health | grep -q '"'; then
+                echo "--- setup.skip force:"; rpc setup.skip '{"force":true}'; SKIPPED=1
+              fi
+              echo "--- foreground:"; curl -s -m 10 http://127.0.0.1:18339/v1/apps/foreground | cut -c1-300; echo
+            fi
             grep -v -E "^[0-9a-f]{8,}:[0-9]+$|apfs_clonegroup|SEP RX" "$L" | tail -4 | cut -c1-200
           done
           kill $BP 2>/dev/null; sleep 3
