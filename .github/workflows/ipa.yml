@@ -24,19 +24,23 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      - name: Check out our repo (icons and patches)
+        uses: actions/checkout@v4
+        with:
+          path: ours
       - name: Check out Monolith (GPL-2.0-or-later)
         run: git clone --depth 1 https://github.com/MakrSas/Monolith.git Henge
       - name: Rebrand as Plutonium (name and icon)
         working-directory: Henge
         run: |
           plutil -replace CFBundleDisplayName -string Plutonium ios/Henge/Info.plist
-          cp "$GITHUB_WORKSPACE"/branding/AppIcon*.png ios/Henge/Resources/
+          cp "$GITHUB_WORKSPACE"/ours/branding/AppIcon*.png ios/Henge/Resources/
           plutil -p ios/Henge/Info.plist | grep -i "DisplayName"
         shell: bash
       - name: Apply our patches to the app
         working-directory: Henge
         run: |
-          for p in "$GITHUB_WORKSPACE"/patches/*.patch; do echo "applying $p"; git apply --whitespace=nowarn "$p"; done
+          for p in "$GITHUB_WORKSPACE"/ours/patches/*.patch; do echo "applying $p"; git apply --whitespace=nowarn "$p"; done
         shell: bash
       # The app's build phase compiles small macOS test programs (tl/Makefile) with plain `xcrun`, which inherits
       # Xcode's iPhoneOS SDK there and fails on NSURLHandle.h. Point those at the macOS SDK.
