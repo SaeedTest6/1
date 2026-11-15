@@ -34,6 +34,7 @@ jobs:
         working-directory: Henge
         run: |
           plutil -replace CFBundleDisplayName -string Plutonium ios/Henge/Info.plist
+          plutil -replace PlutoniumRun -string "$GITHUB_RUN_NUMBER" ios/Henge/Info.plist
           cp "$GITHUB_WORKSPACE"/ours/branding/AppIcon*.png ios/Henge/Resources/
           plutil -p ios/Henge/Info.plist | grep -i "DisplayName"
         shell: bash

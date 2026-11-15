@@ -1,0 +1,65 @@
+diff --git a/ios/Henge/SettingsView.swift b/ios/Henge/SettingsView.swift
+index 35c1f66..035cd94 100644
+--- a/ios/Henge/SettingsView.swift
++++ b/ios/Henge/SettingsView.swift
+@@ -124,6 +124,7 @@ struct SettingsView: View {
+                         .font(.footnote).foregroundStyle(.secondary)
+                 }
+                 .listRowBackground(Desk.card)
++                PlutoniumUpdateSection()
+                 Section("Storage") {
+                     NavigationLink { StorageView() } label: { Label("Files and machines", systemImage: "internaldrive") }
+                 }
+@@ -160,3 +161,52 @@ struct SettingsView: View {
+         }
+     }
+ }
++
++/// Plutonium: in-app update check against this project's GitHub releases. iOS does not let an app install
++/// itself, so the new IPA is handed to SideStore (sidestore://install) or, failing that, opened in Safari.
++struct PlutoniumUpdateSection: View {
++    @State private var status = "Not checked yet"
++    @State private var busy = false
++    @State private var ipaURL: URL?
++
++    private var mine: Int { Int(Bundle.main.object(forInfoDictionaryKey: "PlutoniumRun") as? String ?? "") ?? 0 }
++
++    var body: some View {
++        Section("Updates") {
++            LabeledContent("This build", value: mine > 0 ? "#\(mine)" : "unknown")
++            Button { Task { await check() } } label: {
++                HStack { Text("Check for updates"); if busy { Spacer(); ProgressView() } }
++            }.disabled(busy)
++            Text(status).font(.footnote).foregroundStyle(.secondary)
++            if let ipaURL {
++                Button("Install update with SideStore") { open("sidestore://install?url=" + ipaURL.absoluteString) }
++                Button("Download the IPA") { UIApplication.shared.open(ipaURL) }
++            }
++        }
++        .listRowBackground(Desk.card)
++    }
++
++    private func open(_ s: String) {
++        guard let u = URL(string: s) else { return }
++        UIApplication.shared.open(u) { ok in if !ok, let ipaURL { UIApplication.shared.open(ipaURL) } }
++    }
++
++    private func check() async {
++        busy = true; defer { busy = false }
++        ipaURL = nil
++        guard let api = URL(string: "https://api.github.com/repos/SaeedTest6/1/releases/latest"),
++              let (data, _) = try? await URLSession.shared.data(from: api),
++              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
++              let tag = json["tag_name"] as? String, let latest = Int(tag.replacingOccurrences(of: "ipa-", with: "")) else {
++            status = "Could not reach GitHub"; return
++        }
++        let assets = json["assets"] as? [[String: Any]] ?? []
++        let url = assets.first { ($0["name"] as? String) == "Plutonium.ipa" }
++            .flatMap { ($0["browser_download_url"] as? String).flatMap(URL.init(string:)) }
++        if latest > mine, let url {
++            ipaURL = url; status = "Update #\(latest) is available"
++        } else {
++            status = "You have the latest build (#\(mine))"
++        }
++    }
++}
