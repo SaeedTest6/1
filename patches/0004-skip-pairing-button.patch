@@ -1,0 +1,86 @@
+diff --git a/ios/Henge/GuestApps.swift b/ios/Henge/GuestApps.swift
+index 68faafe..7d122ca 100644
+--- a/ios/Henge/GuestApps.swift
++++ b/ios/Henge/GuestApps.swift
+@@ -68,3 +68,68 @@ struct GuestAppsButton: View {
+         .sheet(isPresented: $shown) { GuestAppsSheet() }
+     }
+ }
++
++/// Plutonium: a manual "skip pairing" for a watch guest. Setup Assistant's own skip does not exist on watchOS,
++/// so this tries what the guest agent can do, one step at a time, logs every answer and shows a short summary.
++struct SkipPairingButton: View {
++    @State private var running = false
++    @State private var summary: String?
++
++    var body: some View {
++        Button { Task { await run() } } label: {
++            VStack(spacing: 6) {
++                if running { ProgressView().tint(.white) }
++                else { Image(systemName: "forward.end").font(.system(size: 22, weight: .medium)) }
++                Text("Skip pairing").font(.system(size: 12))
++            }
++            .foregroundStyle(.white)
++            .frame(maxWidth: .infinity, maxHeight: .infinity)
++            .contentShape(Rectangle())
++        }
++        .buttonStyle(.plain)
++        .disabled(running)
++        .alert("Skip pairing", isPresented: Binding(get: { summary != nil }, set: { if !$0 { summary = nil } })) {
++            Button("OK") { summary = nil }
++        } message: { Text(summary ?? "") }
++    }
++
++    private func short(_ r: [String: Any]?) -> String {
++        guard let r else { return "no answer" }
++        return String("\(r)".prefix(160))
++    }
++
++    private func run() async {
++        running = true
++        defer { running = false }
++        GuestAgent.connect()
++        var lines: [String] = []
++        func step(_ name: String, _ method: String, _ params: [String: Any] = [:], timeout: TimeInterval = 20) async {
++            let r = await GuestAgent.rpc(method, params, timeout: timeout)
++            let s = short(r)
++            HengeLog.log("skip", "\(name): \(s)")
++            lines.append("\(name): \(r == nil ? "failed" : "ok")")
++        }
++        await step("setup.skip", "setup.skip", ["force": true], timeout: 60)
++        for key in ["SetupDone", "SetupFinishedAllSteps", "SetupState"] {
++            let value: Any = key == "SetupState" ? "" : true
++            await step("purplebuddy \(key)", "settings.set",
++                       ["domain": "com.apple.purplebuddy", "key": key, "value": value])
++        }
++        // Stop the pairing daemons so SpringBoard drops the pairing screen.
++        if let list = await GuestAgent.rpc("processes.list", [:], timeout: 30) {
++            var pids: [(String, Int)] = []
++            func scan(_ any: Any) {
++                if let a = any as? [Any] { a.forEach(scan) }
++                else if let d = any as? [String: Any] {
++                    if let n = d["name"] as? String, let p = d["pid"] as? Int,
++                       ["nanoregistryd", "nanoregistrylaun", "gizmoappd"].contains(n) { pids.append((n, p)) }
++                    d.values.forEach(scan)
++                }
++            }
++            scan(list)
++            for (n, p) in pids { await step("kill \(n)", "processes.kill", ["pid": p, "force": true]) }
++        }
++        await step("respring", "system.respring", ["force": true], timeout: 30)
++        summary = lines.joined(separator: "\n") + "\n\nIf the pairing screen is still there, send henge.log."
++    }
++}
+diff --git a/ios/Henge/SessionView.swift b/ios/Henge/SessionView.swift
+index f141036..68d17ed 100644
+--- a/ios/Henge/SessionView.swift
++++ b/ios/Henge/SessionView.swift
+@@ -381,6 +381,8 @@ struct SessionView: View {
+                 Rectangle().fill(Desk.hairline).frame(width: 0.5)
+                 DeviceButton(symbol: "button.vertical.right.press", label: "Side", button: 1)
+                 Rectangle().fill(Desk.hairline).frame(width: 0.5)
++                SkipPairingButton()
++                Rectangle().fill(Desk.hairline).frame(width: 0.5)
+                 GuestAppsButton()
+             }
+         }
