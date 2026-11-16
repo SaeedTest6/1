@@ -43,6 +43,31 @@ jobs:
         run: |
           for p in "$GITHUB_WORKSPACE"/ours/patches/*.patch; do echo "applying $p"; git apply --whitespace=nowarn "$p"; done
         shell: bash
+      # vphone-cli's guest resources (guest-resources.aar and friends) go inside the app for installing
+      # watch/phone guests from the app; package_ipa.sh reads them from VPHONE_RESOURCES. Without them the
+      # IPA is about 18 MB smaller and cannot install a device itself.
+      - name: Clone vphone-cli
+        run: |
+          git clone --depth 1 https://github.com/Lakr233/vphone-cli.git "$RUNNER_TEMP/vphone-cli"
+          echo "VPHONE_SHA=$(git -C "$RUNNER_TEMP/vphone-cli" rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: VPhone.bundle cache
+        id: vcache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/vphone-cli/.build/XcodeBundle/Build/Products/Release/VPhone.bundle
+          key: vphone-bundle-${{ env.VPHONE_SHA }}
+      - name: Build VPhone.bundle
+        if: steps.vcache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}/vphone-cli
+        env:
+          SWIFT_JOBS: "4"
+        run: |
+          set +e
+          xcodebuild -workspace VPhone.xcworkspace -scheme VPhone -configuration Release \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/XcodeBundle -jobs 4 build 2>&1 | tail -20
+          ls .build/XcodeBundle/Build/Products/Release/VPhone.bundle/Contents/Resources | head -20
+      - name: VPhone resources path
+        run: echo "VPHONE_RESOURCES=$RUNNER_TEMP/vphone-cli/.build/XcodeBundle/Build/Products/Release/VPhone.bundle/Contents/Resources" >> "$GITHUB_ENV"
       # The app's build phase compiles small macOS test programs (tl/Makefile) with plain `xcrun`, which inherits
       # Xcode's iPhoneOS SDK there and fails on NSURLHandle.h. Point those at the macOS SDK.
       - name: Point the macOS helper builds at the macOS SDK
